@@ -1,0 +1,7 @@
+rules:
+  function-max-lines:
+    max: 10
+  function-max-params:
+    max: 5
+  no-console:
+    severity: warning
