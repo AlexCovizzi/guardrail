@@ -1,4 +1,4 @@
-import { Registry, Context } from '../../core/types.js'
+import { Registry, Context, ConfigSchema } from '../../core/types.js'
 
 const FUNCTION_NODES: Record<string, string[]> = {
   javascript: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
@@ -29,20 +29,21 @@ function cyclomaticComplexity(node: any, branchTypes: Set<string>): number {
   return complexity
 }
 
-export default function(registry: Registry) {
-  registry.register('function-max-complexity', (rc) => {
-    const max = rc.max ?? 10
-    return {
-      name: `Function exceeds cyclomatic complexity of ${max}`,
-      description: 'Functions should have low cyclomatic complexity',
-      severity: rc.severity ?? 'error',
-      match(node: any, context: Context) {
-        const functionNodes = FUNCTION_NODES[context.language]
-        if (!functionNodes?.includes(node.type)) return false
+const schema = {
+  max: { type: 'number', default: 10, min: 1 },
+} satisfies ConfigSchema
 
-        const branchTypes = new Set(BRANCH_NODES[context.language] ?? [])
-        return cyclomaticComplexity(node, branchTypes) > max
-      },
-    }
-  })
+export default function(registry: Registry) {
+  registry.register('function-max-complexity', schema, (rc) => ({
+    name: `Function exceeds cyclomatic complexity of ${rc.max}`,
+    description: 'Functions should have low cyclomatic complexity',
+    severity: rc.severity,
+    match(node: any, context: Context) {
+      const functionNodes = FUNCTION_NODES[context.language]
+      if (!functionNodes?.includes(node.type)) return false
+
+      const branchTypes = new Set(BRANCH_NODES[context.language] ?? [])
+      return cyclomaticComplexity(node, branchTypes) > rc.max
+    },
+  }))
 }

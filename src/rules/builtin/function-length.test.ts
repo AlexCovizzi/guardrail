@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { makeNode, makeContext } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
+import { validateConfig } from '../../config/validation.js'
 import registerFunctionLength from './function-length.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerFunctionLength(registry)
-  const [{ id, create }] = registry.getEntries()
-  return { id, ...create(config) }
+  const [{ id, schema, create }] = registry.getEntries()
+  return { id, ...create(validateConfig(id, schema, config)) }
 }
 
 function makeFunction(type: string, startRow: number, endRow: number) {
