@@ -1,3 +1,7 @@
+import type { LanguageDefinition, SemanticTypeName } from './languages.js'
+
+export type VisitorKey = SemanticTypeName | `${SemanticTypeName}Exit` | `_${string}` | `_${string}Exit`
+
 export interface SyntaxNode {
   type: string
   text: string
@@ -35,7 +39,7 @@ export interface Violation {
 export interface Context {
   source: string
   filename: string
-  language: string
+  language: LanguageDefinition
   tree: any
 }
 
@@ -50,8 +54,8 @@ export interface Rule {
   description: string
   severity: 'error' | 'warning'
   enabled?: boolean
-  languages?: string[]
-  visitors: Record<string, VisitorFn>
+  languages?: LanguageDefinition['name'][]
+  visitors: Partial<Record<VisitorKey, VisitorFn>>
 }
 
 export interface ConfigBuilder {
@@ -64,7 +68,7 @@ export interface ConfigBuilder {
 export interface RuleDefinition {
   description: string
   defaultSeverity?: 'error' | 'warning'
-  create(config: ConfigBuilder): Record<string, VisitorFn>
+  create(config: ConfigBuilder): Partial<Record<VisitorKey, VisitorFn>>
 }
 
 export interface Registry {
@@ -107,12 +111,15 @@ export type FieldDef = StringField | NumberField | BooleanField | EnumField
 
 export type ConfigSchema = Record<string, FieldDef>
 
-type InferField<F extends FieldDef> =
-  F extends { type: 'string' } ? string :
-  F extends { type: 'number' } ? number :
-  F extends { type: 'boolean' } ? boolean :
-  F extends EnumField<infer T> ? T[number] :
-  never
+type InferField<F extends FieldDef> = F extends { type: 'string' }
+  ? string
+  : F extends { type: 'number' }
+    ? number
+    : F extends { type: 'boolean' }
+      ? boolean
+      : F extends EnumField<infer T>
+        ? T[number]
+        : never
 
 export type ResolvedConfig<S extends ConfigSchema> = {
   [K in keyof S]: InferField<S[K]>

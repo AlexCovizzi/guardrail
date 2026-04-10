@@ -3,6 +3,7 @@ import { makeNode, makeContext } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
 import { ConfigBuilderImpl } from '../../config/builder.js'
 import { RuleContext } from '../../core/types.js'
+import { SemanticTypeName } from '../../core/languages.js'
 import registerFunctionLength from './function-length.js'
 
 function getRule(config: Record<string, any> = {}) {
@@ -18,10 +19,15 @@ function getRule(config: Record<string, any> = {}) {
 function callVisitor(rule: ReturnType<typeof getRule>, node: any, ctx: any, report: any) {
   const ruleCtx: RuleContext = { ...ctx, report }
   for (const [key, fn] of Object.entries(rule.visitors)) {
+    if (fn == null) continue
     const k = key.endsWith('Exit') ? key.slice(0, -4) : key
-    if (!k.startsWith('_')) continue
-    const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
-    if (nodeType === node.type) fn(node, ruleCtx)
+    if (k.startsWith('_')) {
+      const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+      if (nodeType === node.type) fn(node, ruleCtx)
+    } else if (k in ctx.language.types) {
+      const langTypes = ctx.language.types[k as SemanticTypeName]
+      if (langTypes.includes(node.type)) fn(node, ruleCtx)
+    }
   }
 }
 
@@ -63,13 +69,13 @@ describe('function-max-lines', () => {
   })
 
   it.each([
-    'function_declaration',
-    'function_definition',
-    'arrow_function',
-    'method_declaration',
-  ])('matches %s node type', (type) => {
+    { type: 'function_declaration', language: 'typescript' },
+    { type: 'function_definition',  language: 'python' },
+    { type: 'arrow_function',       language: 'typescript' },
+    { type: 'method_declaration',   language: 'java' },
+  ])('matches $type node type in $language', ({ type, language }) => {
     const rule = getRule({ max: 5 })
-    const ctx = makeContext('typescript')
+    const ctx = makeContext(language)
     const report = vi.fn()
     callVisitor(rule, makeFunction(type, 0, 10), ctx, report)
     expect(report).toHaveBeenCalledOnce()

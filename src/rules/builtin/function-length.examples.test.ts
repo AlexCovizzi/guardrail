@@ -9,7 +9,7 @@ function getRule(config: Record<string, any> = {}) {
   registerFunctionLength(registry)
   const [{ id, definition }] = registry.getEntries()
   const builder = new ConfigBuilderImpl(id, config)
-  return { description: definition.description, visitors: definition.create(builder) }
+  return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }
 }
 
 describe('function-max-lines examples', () => {

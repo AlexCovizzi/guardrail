@@ -1,3 +1,5 @@
+import { LanguageDefinition, LANGUAGES } from '../core/languages.js'
+
 export function makeNode(type: string, overrides: Record<string, any> = {}): any {
   return {
     type,
@@ -9,11 +11,21 @@ export function makeNode(type: string, overrides: Record<string, any> = {}): any
   }
 }
 
-export function makeContext(language: string, overrides: Record<string, any> = {}): any {
+export function makeContext(language: string | LanguageDefinition, overrides: Record<string, any> = {}): any {
+  const lang = typeof language === 'string' ? LANGUAGES[language] : language
+  if (!lang) {
+    return {
+      source: '',
+      filename: `file.${language}`,
+      language: { name: language, types: {} },
+      tree: null,
+      ...overrides,
+    }
+  }
   return {
     source: '',
-    filename: `file.${language}`,
-    language,
+    filename: `file.${lang.name}`,
+    language: lang,
     tree: null,
     ...overrides,
   }

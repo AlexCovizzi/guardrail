@@ -3,6 +3,7 @@ import { makeNode, makeContext } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
 import { ConfigBuilderImpl } from '../../config/builder.js'
 import { RuleContext } from '../../core/types.js'
+import { SemanticTypeName } from '../../core/languages.js'
 import registerFunctionParameterCount from './function-parameter-count.js'
 
 function getRule(config: Record<string, any> = {}) {
@@ -18,10 +19,15 @@ function getRule(config: Record<string, any> = {}) {
 function callVisitor(rule: ReturnType<typeof getRule>, node: any, ctx: any, report: any) {
   const ruleCtx: RuleContext = { ...ctx, report }
   for (const [key, fn] of Object.entries(rule.visitors)) {
+    if (fn == null) continue
     const k = key.endsWith('Exit') ? key.slice(0, -4) : key
-    if (!k.startsWith('_')) continue
-    const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
-    if (nodeType === node.type) fn(node, ruleCtx)
+    if (k.startsWith('_')) {
+      const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+      if (nodeType === node.type) fn(node, ruleCtx)
+    } else if (k in ctx.language.types) {
+      const langTypes = ctx.language.types[k as SemanticTypeName]
+      if (langTypes.includes(node.type)) fn(node, ruleCtx)
+    }
   }
 }
 

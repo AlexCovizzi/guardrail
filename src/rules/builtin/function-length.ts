@@ -6,24 +6,15 @@ export default function (registry: Registry) {
     create(config) {
       const max = config.number('max', { default: 60, min: 1 })
 
-      function check(node: SyntaxNode, ctx: RuleContext): void {
-        const lines = node.endPosition.row - node.startPosition.row + 1
-        if (lines <= max) return
-        ctx.report({
-          message: `Function is ${lines} lines (max: ${max})`,
-          hint: 'Split this function into smaller, focused functions',
-        })
-      }
-
       return {
-        _functionDeclaration: check,
-        _functionDefinition: check,
-        _arrowFunction: check,
-        _methodDeclaration: check,
-        _functionExpression: check,
-        _methodDefinition: check,
-        _constructorDeclaration: check,
-        _anonymousFunction: check,
+        function(node: SyntaxNode, ctx: RuleContext): void {
+          const lines = node.endPosition.row - node.startPosition.row + 1
+          if (lines <= max) return
+          ctx.report({
+            message: `Function is ${lines} lines (max: ${max})`,
+            hint: 'Split this function into smaller, focused functions',
+          })
+        },
       }
     },
   })
