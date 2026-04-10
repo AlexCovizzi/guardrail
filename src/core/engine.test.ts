@@ -24,11 +24,10 @@ function makeTree(root: any): any {
 function makeRule(overrides: Partial<Rule> = {}): Rule {
   return {
     id: 'test-rule',
-    name: 'Test Rule',
     description: '',
     severity: 'error',
     enabled: true,
-    match: () => false,
+    match: () => {},
     ...overrides,
   }
 }
@@ -42,7 +41,7 @@ beforeEach(() => {
 
 describe('Engine.check', () => {
   it('returns no violations when no rules match', async () => {
-    mockLoadRules.mockResolvedValue([makeRule({ match: () => false })])
+    mockLoadRules.mockResolvedValue([makeRule({ match: () => {} })])
     const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
@@ -52,7 +51,7 @@ describe('Engine.check', () => {
   })
 
   it('returns a violation when a rule matches', async () => {
-    mockLoadRules.mockResolvedValue([makeRule({ match: () => true })])
+    mockLoadRules.mockResolvedValue([makeRule({ match: (_n: any, _c: any, report: any) => report({ message: 'Test violation' }) })])
     const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
@@ -62,7 +61,7 @@ describe('Engine.check', () => {
   })
 
   it('sets passed: false when there is an error violation', async () => {
-    mockLoadRules.mockResolvedValue([makeRule({ severity: 'error', match: () => true })])
+    mockLoadRules.mockResolvedValue([makeRule({ severity: 'error', match: (_n: any, _c: any, report: any) => report({ message: 'Test violation' }) })])
     const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
@@ -71,7 +70,7 @@ describe('Engine.check', () => {
   })
 
   it('sets passed: true when violations are warnings only', async () => {
-    mockLoadRules.mockResolvedValue([makeRule({ severity: 'warning', match: () => true })])
+    mockLoadRules.mockResolvedValue([makeRule({ severity: 'warning', match: (_n: any, _c: any, report: any) => report({ message: 'Test violation' }) })])
     const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
@@ -81,7 +80,7 @@ describe('Engine.check', () => {
   })
 
   it('skips disabled rules', async () => {
-    mockLoadRules.mockResolvedValue([makeRule({ enabled: false, match: () => true })])
+    mockLoadRules.mockResolvedValue([makeRule({ enabled: false, match: (_n: any, _c: any, report: any) => report({ message: 'Test violation' }) })])
     const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
@@ -91,7 +90,7 @@ describe('Engine.check', () => {
 
   it('skips rules that do not target the detected language', async () => {
     mockDetectLanguage.mockReturnValue('typescript')
-    mockLoadRules.mockResolvedValue([makeRule({ languages: ['python'], match: () => true })])
+    mockLoadRules.mockResolvedValue([makeRule({ languages: ['python'], match: (_n: any, _c: any, report: any) => report({ message: 'Test violation' }) })])
     const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
@@ -104,7 +103,7 @@ describe('Engine.check', () => {
     const root = makeNode('', { childCount: 1, child: () => child })
     mockParse.mockResolvedValue(makeTree(root))
     const visited: any[] = []
-    mockLoadRules.mockResolvedValue([makeRule({ match: (node) => { visited.push(node); return false } })])
+    mockLoadRules.mockResolvedValue([makeRule({ match: (node) => { visited.push(node) } })])
     const engine = new Engine({})
 
     await engine.check('file.ts', 'const x = 1')
@@ -113,19 +112,19 @@ describe('Engine.check', () => {
     expect(visited).toContain(child)
   })
 
-  it('includes fix in violation when rule provides one', async () => {
-    mockLoadRules.mockResolvedValue([makeRule({ match: () => true, fix: () => 'const x = 2' })])
+  it('includes hint in violation when rule provides one', async () => {
+    mockLoadRules.mockResolvedValue([makeRule({ match: (_n: any, _c: any, report: any) => report({ message: 'Test violation', hint: 'Split this function' }) })])
     const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
 
-    expect(result.violations[0].fix).toBe('const x = 2')
+    expect(result.violations[0].hint).toBe('Split this function')
   })
 
   it('passes correct context to rule.match', async () => {
     let capturedContext: any
     mockDetectLanguage.mockReturnValue('typescript')
-    mockLoadRules.mockResolvedValue([makeRule({ match: (_, ctx) => { capturedContext = ctx; return false } })])
+    mockLoadRules.mockResolvedValue([makeRule({ match: (_, ctx) => { capturedContext = ctx } })])
     const engine = new Engine({})
 
     await engine.check('file.ts', 'const x = 1')

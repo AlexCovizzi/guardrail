@@ -11,20 +11,21 @@ export interface Location {
 export interface Violation {
   ruleId: string
   message: string
+  description: string
   location: Location
   severity: 'error' | 'warning'
-  fix?: string
+  hint?: string
 }
+
+export type Report = (violation: { message: string; hint?: string }) => void
 
 export interface Rule {
   id: string
-  name: string
   description: string
   severity: 'error' | 'warning'
   enabled?: boolean
   languages?: string[]
-  match(node: any, context: Context): boolean
-  fix?(node: any, context: Context): string | undefined
+  match(node: any, context: Context, report: Report): void
 }
 
 export interface Context {

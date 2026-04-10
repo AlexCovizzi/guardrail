@@ -1,4 +1,4 @@
-import { Registry, Context, ConfigSchema } from '../../core/types.js'
+import { Registry, Context, ConfigSchema, Report } from '../../core/types.js'
 
 const FUNCTION_NODES: Record<string, string[]> = {
   javascript: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
@@ -32,17 +32,21 @@ const schema = {
 
 export default function (registry: Registry) {
   registry.register('function-max-params', schema, (rc) => ({
-    name: `Function exceeds ${rc.max} parameters`,
     description: 'Functions should have a limited number of parameters',
     severity: rc.severity,
-    match(node: any, context: Context) {
+    match(node: any, context: Context, report: Report): void {
       const functionNodes = FUNCTION_NODES[context.language]
-      if (!functionNodes?.includes(node.type)) return false
+      if (!functionNodes?.includes(node.type)) return
 
       const paramNodeType = PARAM_NODES[context.language]
-      if (!paramNodeType) return false
+      if (!paramNodeType) return
 
-      return countParams(node, paramNodeType) > rc.max
+      const count = countParams(node, paramNodeType)
+      if (count <= rc.max) return
+      report({
+        message: `Function has ${count} parameters (max: ${rc.max})`,
+        hint: 'Group related parameters into an options object',
+      })
     },
   }))
 }

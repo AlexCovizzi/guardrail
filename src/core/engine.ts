@@ -1,5 +1,5 @@
 import { parse, detectLanguage } from './parser.js'
-import { Config, Context, Result, Violation } from './types.js'
+import { Config, Context, Report, Result, Violation } from './types.js'
 import { loadRules } from '../rules/loader.js'
 import { resolveConfigForLanguage } from '../config/resolver.js'
 
@@ -24,18 +24,22 @@ export class Engine {
       for (const rule of rules) {
         if (rule.enabled === false) continue
         if (rule.languages && !rule.languages.includes(context.language)) continue
-        if (rule.match(node, context)) {
+
+        const report: Report = ({ message, hint }) => {
           violations.push({
             ruleId: rule.id,
-            message: rule.name,
+            message,
+            description: rule.description,
             location: {
               start: { line: node.startPosition.row + 1, column: node.startPosition.column },
               end: { line: node.endPosition.row + 1, column: node.endPosition.column },
             },
             severity: rule.severity,
-            fix: rule.fix?.(node, context),
+            hint,
           })
         }
+
+        rule.match(node, context, report)
       }
 
       for (let i = 0; i < node.childCount; i++) {

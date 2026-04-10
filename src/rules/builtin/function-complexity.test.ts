@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { makeNode, makeContext } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
 import { validateConfig } from '../../config/validation.js'
@@ -32,44 +32,54 @@ describe('function-max-complexity', () => {
     expect(getRule({ severity: 'warning' }).severity).toBe('warning')
   })
 
-  it('returns false for non-function nodes', () => {
+  it('does not report for non-function nodes', () => {
     const rule = getRule({ max: 1 })
     const ctx = makeContext('typescript')
-    const node = makeNode('if_statement')
-    expect(rule.match(node, ctx)).toBe(false)
+    const report = vi.fn()
+    rule.match(makeNode('if_statement'), ctx, report)
+    expect(report).not.toHaveBeenCalled()
   })
 
-  it('returns false when complexity is within default limit', () => {
+  it('does not report when complexity is within default limit', () => {
     const rule = getRule()
     const ctx = makeContext('typescript')
-    // complexity 1 (no branches)
-    expect(rule.match(makeFunction('typescript'), ctx)).toBe(false)
+    const report = vi.fn()
+    rule.match(makeFunction('typescript'), ctx, report)
+    expect(report).not.toHaveBeenCalled()
   })
 
-  it('returns false when complexity equals max', () => {
+  it('does not report when complexity equals max', () => {
     const rule = getRule({ max: 3 })
     const ctx = makeContext('typescript')
+    const report = vi.fn()
     // complexity = 1 + 2 branches = 3
-    expect(rule.match(makeFunction('typescript', ['if_statement', 'for_statement']), ctx)).toBe(false)
+    rule.match(makeFunction('typescript', ['if_statement', 'for_statement']), ctx, report)
+    expect(report).not.toHaveBeenCalled()
   })
 
-  it('returns true when complexity exceeds max', () => {
+  it('reports when complexity exceeds max', () => {
     const rule = getRule({ max: 3 })
     const ctx = makeContext('typescript')
+    const report = vi.fn()
     // complexity = 1 + 3 branches = 4
-    expect(rule.match(makeFunction('typescript', ['if_statement', 'for_statement', 'while_statement']), ctx)).toBe(true)
+    rule.match(makeFunction('typescript', ['if_statement', 'for_statement', 'while_statement']), ctx, report)
+    expect(report).toHaveBeenCalledOnce()
   })
 
   it('uses custom max from config', () => {
     const rule = getRule({ max: 1 })
     const ctx = makeContext('typescript')
-    expect(rule.match(makeFunction('typescript', ['if_statement']), ctx)).toBe(true)
+    const report = vi.fn()
+    rule.match(makeFunction('typescript', ['if_statement']), ctx, report)
+    expect(report).toHaveBeenCalledOnce()
   })
 
-  it('returns false for unsupported language', () => {
+  it('does not report for unsupported language', () => {
     const rule = getRule({ max: 1 })
     const ctx = makeContext('ruby')
-    expect(rule.match(makeFunction('ruby', ['if_statement']), ctx)).toBe(false)
+    const report = vi.fn()
+    rule.match(makeFunction('ruby', ['if_statement']), ctx, report)
+    expect(report).not.toHaveBeenCalled()
   })
 
   it('counts branches for python language', () => {
@@ -79,7 +89,22 @@ describe('function-max-complexity', () => {
       child: (i: number) => makeNode(['if_statement', 'for_statement'][i]),
     })
     const ctx = makeContext('python')
+    const report = vi.fn()
     // complexity = 1 + 2 = 3 > 2
-    expect(rule.match(fnNode, ctx)).toBe(true)
+    rule.match(fnNode, ctx, report)
+    expect(report).toHaveBeenCalledOnce()
+  })
+
+  it('includes actual and max complexity in message', () => {
+    const rule = getRule({ max: 1 })
+    const ctx = makeContext('typescript')
+    const report = vi.fn()
+    rule.match(makeFunction('typescript', ['if_statement']), ctx, report)
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('2'),
+    }))
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('1'),
+    }))
   })
 })

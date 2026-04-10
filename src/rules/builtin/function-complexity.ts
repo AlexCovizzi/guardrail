@@ -1,4 +1,4 @@
-import { Registry, Context, ConfigSchema } from '../../core/types.js'
+import { Registry, Context, ConfigSchema, Report } from '../../core/types.js'
 
 const FUNCTION_NODES: Record<string, string[]> = {
   javascript: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
@@ -35,15 +35,19 @@ const schema = {
 
 export default function(registry: Registry) {
   registry.register('function-max-complexity', schema, (rc) => ({
-    name: `Function exceeds cyclomatic complexity of ${rc.max}`,
     description: 'Functions should have low cyclomatic complexity',
     severity: rc.severity,
-    match(node: any, context: Context) {
+    match(node: any, context: Context, report: Report): void {
       const functionNodes = FUNCTION_NODES[context.language]
-      if (!functionNodes?.includes(node.type)) return false
+      if (!functionNodes?.includes(node.type)) return
 
       const branchTypes = new Set(BRANCH_NODES[context.language] ?? [])
-      return cyclomaticComplexity(node, branchTypes) > rc.max
+      const complexity = cyclomaticComplexity(node, branchTypes)
+      if (complexity <= rc.max) return
+      report({
+        message: `Function has cyclomatic complexity of ${complexity} (max: ${rc.max})`,
+        hint: 'Reduce nesting by extracting branches into separate functions',
+      })
     },
   }))
 }

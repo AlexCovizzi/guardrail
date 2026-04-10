@@ -10,7 +10,9 @@ export async function matchesAnyNode(rule: Omit<Rule, 'id'>, source: string, lan
 
   while (stack.length > 0) {
     const node = stack.pop()!
-    if (rule.match(node, context)) return true
+    let matched = false
+    rule.match(node, context, () => { matched = true })
+    if (matched) return true
     for (let i = 0; i < node.childCount; i++) stack.push(node.child(i)!)
   }
 
