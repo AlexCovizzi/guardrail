@@ -13,11 +13,19 @@ vi.mock('fs', async (importOriginal) => ({
   readdirSync: vi.fn(),
 }))
 
+vi.mock('env-paths', () => ({
+  default: () => ({ config: '/mock/global/guardrail' }),
+}))
+
 const { discoverRules } = await import('./discovery.js')
 const { existsSync, readdirSync } = await import('fs')
 
 const mockExistsSync = vi.mocked(existsSync)
 const mockReaddirSync = vi.mocked(readdirSync)
+
+// Known paths produced by the mocked env-paths + process.cwd()
+const GLOBAL_DIR = '/mock/global/guardrail/rules'
+const LOCAL_DIR = `${process.cwd()}/.guardrail/rules`
 
 function makeRegistry(): Registry & { calls: string[] } {
   const calls: string[] = []
@@ -27,12 +35,17 @@ function makeRegistry(): Registry & { calls: string[] } {
   }
 }
 
+/** existsSync returns true only for the given directory */
+function existsOnlyIn(dir: string) {
+  mockExistsSync.mockImplementation((p) => p === dir)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
 describe('discoverRules', () => {
-  it('does nothing when rules directory does not exist', async () => {
+  it('does nothing when neither rules directory exists', async () => {
     mockExistsSync.mockReturnValue(false)
     const registry = makeRegistry()
 
@@ -42,8 +55,8 @@ describe('discoverRules', () => {
     expect(registry.calls).toHaveLength(0)
   })
 
-  it('calls register function exported as default', async () => {
-    mockExistsSync.mockReturnValue(true)
+  it('loads rules from local directory', async () => {
+    existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['my-rule.js'] as any)
     mockJitiImport.mockResolvedValue({ default: (r: Registry) => r.register('my-rule', () => ({} as any)) })
 
@@ -53,8 +66,34 @@ describe('discoverRules', () => {
     expect(registry.calls).toEqual(['my-rule'])
   })
 
-  it('calls register function exported directly (no default)', async () => {
+  it('loads rules from global directory', async () => {
+    existsOnlyIn(GLOBAL_DIR)
+    mockReaddirSync.mockReturnValue(['global-rule.js'] as any)
+    mockJitiImport.mockResolvedValue({ default: (r: Registry) => r.register('global-rule', () => ({} as any)) })
+
+    const registry = makeRegistry()
+    await discoverRules(registry)
+
+    expect(registry.calls).toEqual(['global-rule'])
+  })
+
+  it('loads rules from both global and local directories', async () => {
     mockExistsSync.mockReturnValue(true)
+    mockReaddirSync
+      .mockReturnValueOnce(['global-rule.js'] as any)
+      .mockReturnValueOnce(['local-rule.js'] as any)
+    mockJitiImport
+      .mockResolvedValueOnce({ default: (r: Registry) => r.register('global-rule', () => ({} as any)) })
+      .mockResolvedValueOnce({ default: (r: Registry) => r.register('local-rule', () => ({} as any)) })
+
+    const registry = makeRegistry()
+    await discoverRules(registry)
+
+    expect(registry.calls).toEqual(['global-rule', 'local-rule'])
+  })
+
+  it('calls register function exported directly (no default)', async () => {
+    existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['my-rule.js'] as any)
     const register = (r: Registry) => r.register('my-rule', () => ({} as any))
     mockJitiImport.mockResolvedValue(register)
@@ -66,7 +105,7 @@ describe('discoverRules', () => {
   })
 
   it('filters out files with unsupported extensions', async () => {
-    mockExistsSync.mockReturnValue(true)
+    existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['rule.ts', 'rule.json', 'rule.md', 'rule.mjs'] as any)
     mockJitiImport.mockResolvedValue({ default: (r: Registry) => r.register('x', () => ({} as any)) })
 
@@ -77,7 +116,7 @@ describe('discoverRules', () => {
   })
 
   it('loads files in sorted order', async () => {
-    mockExistsSync.mockReturnValue(true)
+    existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['z-rule.js', 'a-rule.js', 'm-rule.js'] as any)
     const loadOrder: string[] = []
     mockJitiImport.mockImplementation(async (path: string) => ({
@@ -93,7 +132,7 @@ describe('discoverRules', () => {
   })
 
   it('logs error and continues when a rule file fails to load', async () => {
-    mockExistsSync.mockReturnValue(true)
+    existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['bad-rule.js', 'good-rule.js'] as any)
     mockJitiImport
       .mockRejectedValueOnce(new Error('syntax error'))
