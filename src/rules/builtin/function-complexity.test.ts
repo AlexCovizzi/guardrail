@@ -1,14 +1,28 @@
 import { describe, it, expect, vi } from 'vitest'
 import { makeNode, makeContext } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
-import { validateConfig } from '../../config/validation.js'
+import { ConfigBuilderImpl } from '../../config/builder.js'
+import { RuleContext } from '../../core/types.js'
 import registerFunctionComplexity from './function-complexity.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerFunctionComplexity(registry)
-  const [{ id, schema, create }] = registry.getEntries()
-  return { id, ...create(validateConfig(id, schema, config)) }
+  const [{ id, definition }] = registry.getEntries()
+  const builder = new ConfigBuilderImpl(id, config)
+  const visitors = definition.create(builder)
+  const severity = config.severity ?? definition.defaultSeverity ?? 'error'
+  return { id, description: definition.description, severity, visitors }
+}
+
+function callVisitor(rule: ReturnType<typeof getRule>, node: any, ctx: any, report: any) {
+  const ruleCtx: RuleContext = { ...ctx, report }
+  for (const [key, fn] of Object.entries(rule.visitors)) {
+    const k = key.endsWith('Exit') ? key.slice(0, -4) : key
+    if (!k.startsWith('_')) continue
+    const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+    if (nodeType === node.type) fn(node, ruleCtx)
+  }
 }
 
 function makeFunction(language: string, branchTypes: string[] = []) {
@@ -36,7 +50,7 @@ describe('function-max-complexity', () => {
     const rule = getRule({ max: 1 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeNode('if_statement'), ctx, report)
+    callVisitor(rule, makeNode('if_statement'), ctx, report)
     expect(report).not.toHaveBeenCalled()
   })
 
@@ -44,7 +58,7 @@ describe('function-max-complexity', () => {
     const rule = getRule()
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction('typescript'), ctx, report)
+    callVisitor(rule, makeFunction('typescript'), ctx, report)
     expect(report).not.toHaveBeenCalled()
   })
 
@@ -53,7 +67,7 @@ describe('function-max-complexity', () => {
     const ctx = makeContext('typescript')
     const report = vi.fn()
     // complexity = 1 + 2 branches = 3
-    rule.match(makeFunction('typescript', ['if_statement', 'for_statement']), ctx, report)
+    callVisitor(rule, makeFunction('typescript', ['if_statement', 'for_statement']), ctx, report)
     expect(report).not.toHaveBeenCalled()
   })
 
@@ -62,7 +76,7 @@ describe('function-max-complexity', () => {
     const ctx = makeContext('typescript')
     const report = vi.fn()
     // complexity = 1 + 3 branches = 4
-    rule.match(makeFunction('typescript', ['if_statement', 'for_statement', 'while_statement']), ctx, report)
+    callVisitor(rule, makeFunction('typescript', ['if_statement', 'for_statement', 'while_statement']), ctx, report)
     expect(report).toHaveBeenCalledOnce()
   })
 
@@ -70,7 +84,7 @@ describe('function-max-complexity', () => {
     const rule = getRule({ max: 1 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction('typescript', ['if_statement']), ctx, report)
+    callVisitor(rule, makeFunction('typescript', ['if_statement']), ctx, report)
     expect(report).toHaveBeenCalledOnce()
   })
 
@@ -78,7 +92,7 @@ describe('function-max-complexity', () => {
     const rule = getRule({ max: 1 })
     const ctx = makeContext('ruby')
     const report = vi.fn()
-    rule.match(makeFunction('ruby', ['if_statement']), ctx, report)
+    callVisitor(rule, makeFunction('ruby', ['if_statement']), ctx, report)
     expect(report).not.toHaveBeenCalled()
   })
 
@@ -91,7 +105,7 @@ describe('function-max-complexity', () => {
     const ctx = makeContext('python')
     const report = vi.fn()
     // complexity = 1 + 2 = 3 > 2
-    rule.match(fnNode, ctx, report)
+    callVisitor(rule, fnNode, ctx, report)
     expect(report).toHaveBeenCalledOnce()
   })
 
@@ -99,7 +113,7 @@ describe('function-max-complexity', () => {
     const rule = getRule({ max: 1 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction('typescript', ['if_statement']), ctx, report)
+    callVisitor(rule, makeFunction('typescript', ['if_statement']), ctx, report)
     expect(report).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('2'),
     }))

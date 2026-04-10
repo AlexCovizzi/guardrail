@@ -1,14 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { matchesAnyNode } from '../../test/helpers.js'
 import { RuleRegistry } from '../registry.js'
-import { validateConfig } from '../../config/validation.js'
+import { ConfigBuilderImpl } from '../../config/builder.js'
 import registerFunctionComplexity from './function-complexity.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerFunctionComplexity(registry)
-  const [{ id, schema, create }] = registry.getEntries()
-  return create(validateConfig(id, schema, config))
+  const [{ id, definition }] = registry.getEntries()
+  const builder = new ConfigBuilderImpl(id, config)
+  return { description: definition.description, visitors: definition.create(builder) }
 }
 
 describe('function-max-complexity examples', () => {

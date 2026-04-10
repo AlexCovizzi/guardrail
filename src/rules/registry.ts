@@ -1,20 +1,15 @@
-import { Registry, ConfigSchema, RuleConfig, ResolvedConfig, Rule } from '../core/types.js'
+import { Registry, RuleDefinition } from '../core/types.js'
 
 type Entry = {
   id: string
-  schema: ConfigSchema
-  create: (config: ResolvedConfig<ConfigSchema>) => Omit<Rule, 'id'>
+  definition: RuleDefinition
 }
 
 export class RuleRegistry implements Registry {
   private entries: Entry[] = []
 
-  register<S extends ConfigSchema>(
-    id: string,
-    schema: S,
-    create: (config: ResolvedConfig<S>) => Omit<Rule, 'id'>
-  ): void {
-    this.entries.push({ id, schema, create: create as Entry['create'] })
+  register(id: string, definition: RuleDefinition): void {
+    this.entries.push({ id, definition })
   }
 
   getEntries(): Entry[] {

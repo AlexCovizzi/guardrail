@@ -1,3 +1,18 @@
+export interface SyntaxNode {
+  type: string
+  text: string
+  startPosition: { row: number; column: number }
+  endPosition: { row: number; column: number }
+  startIndex: number
+  endIndex: number
+  childCount: number
+  namedChildCount: number
+  child(index: number): SyntaxNode | null
+  namedChild(index: number): SyntaxNode | null
+  parent: SyntaxNode | null
+  isNamed: boolean
+}
+
 export interface Position {
   line: number
   column: number
@@ -17,7 +32,18 @@ export interface Violation {
   hint?: string
 }
 
-export type Report = (violation: { message: string; hint?: string }) => void
+export interface Context {
+  source: string
+  filename: string
+  language: string
+  tree: any
+}
+
+export interface RuleContext extends Context {
+  report(violation: { message: string; hint?: string }): void
+}
+
+export type VisitorFn = (node: SyntaxNode, ctx: RuleContext) => void
 
 export interface Rule {
   id: string
@@ -25,14 +51,24 @@ export interface Rule {
   severity: 'error' | 'warning'
   enabled?: boolean
   languages?: string[]
-  match(node: any, context: Context, report: Report): void
+  visitors: Record<string, VisitorFn>
 }
 
-export interface Context {
-  source: string
-  filename: string
-  language: string
-  tree: any
+export interface ConfigBuilder {
+  number(key: string, options: { default: number; min?: number; max?: number }): number
+  string(key: string, options: { default: string; minLength?: number; maxLength?: number }): string
+  boolean(key: string, options: { default: boolean }): boolean
+  enum<T extends readonly (string | number)[]>(key: string, options: { values: T; default: T[number] }): T[number]
+}
+
+export interface RuleDefinition {
+  description: string
+  defaultSeverity?: 'error' | 'warning'
+  create(config: ConfigBuilder): Record<string, VisitorFn>
+}
+
+export interface Registry {
+  register(id: string, definition: RuleDefinition): void
 }
 
 export interface RuleConfig {
@@ -78,18 +114,9 @@ type InferField<F extends FieldDef> =
   F extends EnumField<infer T> ? T[number] :
   never
 
-/** Typed, defaults-applied config passed to a rule's create function. */
 export type ResolvedConfig<S extends ConfigSchema> = {
   [K in keyof S]: InferField<S[K]>
 } & { severity: 'error' | 'warning' }
-
-export interface Registry {
-  register<S extends ConfigSchema>(
-    id: string,
-    schema: S,
-    create: (config: ResolvedConfig<S>) => Omit<Rule, 'id'>
-  ): void
-}
 
 export interface Config {
   rules?: Record<string, RuleConfig>

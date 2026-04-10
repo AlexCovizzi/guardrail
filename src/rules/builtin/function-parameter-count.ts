@@ -1,4 +1,4 @@
-import { Registry, Context, ConfigSchema, Report } from '../../core/types.js'
+import { Registry, SyntaxNode, RuleContext } from '../../core/types.js'
 
 const FUNCTION_NODES: Record<string, string[]> = {
   javascript: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
@@ -16,7 +16,13 @@ const PARAM_NODES: Record<string, string> = {
   kotlin:     'function_value_parameters',
 }
 
-function countParams(node: any, paramNodeType: string): number {
+const ALL_FUNCTION_TYPES = [...new Set(Object.values(FUNCTION_NODES).flat())]
+
+function snakeToCamel(s: string): string {
+  return s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+}
+
+function countParams(node: SyntaxNode, paramNodeType: string): number {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child?.type === paramNodeType) {
@@ -26,27 +32,28 @@ function countParams(node: any, paramNodeType: string): number {
   return 0
 }
 
-const schema = {
-  max: { type: 'number', default: 4, min: 0 },
-} satisfies ConfigSchema
-
 export default function (registry: Registry) {
-  registry.register('function-max-params', schema, (rc) => ({
+  registry.register('function-max-params', {
     description: 'Functions should have a limited number of parameters',
-    severity: rc.severity,
-    match(node: any, context: Context, report: Report): void {
-      const functionNodes = FUNCTION_NODES[context.language]
-      if (!functionNodes?.includes(node.type)) return
+    create(config) {
+      const max = config.number('max', { default: 4, min: 0 })
 
-      const paramNodeType = PARAM_NODES[context.language]
-      if (!paramNodeType) return
+      function check(node: SyntaxNode, ctx: RuleContext): void {
+        const functionNodes = FUNCTION_NODES[ctx.language]
+        if (!functionNodes?.includes(node.type)) return
 
-      const count = countParams(node, paramNodeType)
-      if (count <= rc.max) return
-      report({
-        message: `Function has ${count} parameters (max: ${rc.max})`,
-        hint: 'Group related parameters into an options object',
-      })
+        const paramNodeType = PARAM_NODES[ctx.language]
+        if (!paramNodeType) return
+
+        const count = countParams(node, paramNodeType)
+        if (count <= max) return
+        ctx.report({
+          message: `Function has ${count} parameters (max: ${max})`,
+          hint: 'Group related parameters into an options object',
+        })
+      }
+
+      return Object.fromEntries(ALL_FUNCTION_TYPES.map((t) => [`_${snakeToCamel(t)}`, check]))
     },
-  }))
+  })
 }

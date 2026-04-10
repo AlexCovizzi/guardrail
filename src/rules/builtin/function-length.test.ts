@@ -1,14 +1,28 @@
 import { describe, it, expect, vi } from 'vitest'
 import { makeNode, makeContext } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
-import { validateConfig } from '../../config/validation.js'
+import { ConfigBuilderImpl } from '../../config/builder.js'
+import { RuleContext } from '../../core/types.js'
 import registerFunctionLength from './function-length.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerFunctionLength(registry)
-  const [{ id, schema, create }] = registry.getEntries()
-  return { id, ...create(validateConfig(id, schema, config)) }
+  const [{ id, definition }] = registry.getEntries()
+  const builder = new ConfigBuilderImpl(id, config)
+  const visitors = definition.create(builder)
+  const severity = config.severity ?? definition.defaultSeverity ?? 'error'
+  return { id, description: definition.description, severity, visitors }
+}
+
+function callVisitor(rule: ReturnType<typeof getRule>, node: any, ctx: any, report: any) {
+  const ruleCtx: RuleContext = { ...ctx, report }
+  for (const [key, fn] of Object.entries(rule.visitors)) {
+    const k = key.endsWith('Exit') ? key.slice(0, -4) : key
+    if (!k.startsWith('_')) continue
+    const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+    if (nodeType === node.type) fn(node, ruleCtx)
+  }
 }
 
 function makeFunction(type: string, startRow: number, endRow: number) {
@@ -24,9 +38,9 @@ describe('function-max-lines', () => {
     const rule = getRule()
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction('function_declaration', 0, 59), ctx, report)
+    callVisitor(rule, makeFunction('function_declaration', 0, 59), ctx, report)
     expect(report).not.toHaveBeenCalled()
-    rule.match(makeFunction('function_declaration', 0, 60), ctx, report)
+    callVisitor(rule, makeFunction('function_declaration', 0, 60), ctx, report)
     expect(report).toHaveBeenCalledOnce()
   })
 
@@ -34,9 +48,9 @@ describe('function-max-lines', () => {
     const rule = getRule({ max: 10 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction('function_declaration', 0, 9), ctx, report)
+    callVisitor(rule, makeFunction('function_declaration', 0, 9), ctx, report)
     expect(report).not.toHaveBeenCalled()
-    rule.match(makeFunction('function_declaration', 0, 10), ctx, report)
+    callVisitor(rule, makeFunction('function_declaration', 0, 10), ctx, report)
     expect(report).toHaveBeenCalledOnce()
   })
 
@@ -57,7 +71,7 @@ describe('function-max-lines', () => {
     const rule = getRule({ max: 5 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction(type, 0, 10), ctx, report)
+    callVisitor(rule, makeFunction(type, 0, 10), ctx, report)
     expect(report).toHaveBeenCalledOnce()
   })
 
@@ -65,7 +79,7 @@ describe('function-max-lines', () => {
     const rule = getRule({ max: 5 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction('if_statement', 0, 100), ctx, report)
+    callVisitor(rule, makeFunction('if_statement', 0, 100), ctx, report)
     expect(report).not.toHaveBeenCalled()
   })
 
@@ -73,7 +87,7 @@ describe('function-max-lines', () => {
     const rule = getRule({ max: 5 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
-    rule.match(makeFunction('function_declaration', 0, 10), ctx, report)
+    callVisitor(rule, makeFunction('function_declaration', 0, 10), ctx, report)
     expect(report).toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('11'),
     }))

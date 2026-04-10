@@ -3,12 +3,12 @@ import { loadRules } from './loader.js'
 
 vi.mock('./builtin/index.js', () => ({
   registerBuiltins: (registry: any) => {
-    registry.register('test-rule', {}, () => ({
-      name: 'Test Rule',
+    registry.register('test-rule', {
       description: 'A test rule',
-      severity: 'error',
-      match: () => false,
-    }))
+      create() {
+        return {}
+      },
+    })
   },
 }))
 

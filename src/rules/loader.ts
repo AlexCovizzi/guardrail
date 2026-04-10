@@ -2,7 +2,7 @@ import { Rule, Config, RuleConfig } from '../core/types.js'
 import { RuleRegistry } from './registry.js'
 import { registerBuiltins } from './builtin/index.js'
 import { discoverRules } from './discovery.js'
-import { validateConfig } from '../config/validation.js'
+import { ConfigBuilderImpl } from '../config/builder.js'
 
 function isEnabled(rc: RuleConfig): boolean {
   if (rc.enabled !== undefined) return rc.enabled
@@ -17,12 +17,13 @@ export async function loadRules(config: Config): Promise<Rule[]> {
   await discoverRules(registry)
 
   const rules: Rule[] = []
-  for (const { id, schema, create } of registry.getEntries()) {
+  for (const { id, definition } of registry.getEntries()) {
     const rc = config.rules?.[id] ?? {}
-    const resolved = validateConfig(id, schema, rc)
-    const rule: Rule = { id, ...create(resolved) }
+    const builder = new ConfigBuilderImpl(id, rc)
+    const visitors = definition.create(builder)
+    const severity = (rc.severity as 'error' | 'warning' | undefined) ?? definition.defaultSeverity ?? 'error'
+    const rule: Rule = { id, description: definition.description, severity, visitors, enabled: isEnabled(rc) }
 
-    rule.enabled = isEnabled(rc)
     if (rule.enabled) rules.push(rule)
   }
 

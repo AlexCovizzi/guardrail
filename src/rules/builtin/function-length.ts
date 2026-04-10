@@ -1,28 +1,30 @@
-import { Registry, Context, ConfigSchema, Report } from '../../core/types.js'
-
-const schema = {
-  max: { type: 'number', default: 60, min: 1 },
-} satisfies ConfigSchema
+import { Registry, SyntaxNode, RuleContext } from '../../core/types.js'
 
 export default function (registry: Registry) {
-  registry.register('function-max-lines', schema, (rc) => ({
+  registry.register('function-max-lines', {
     description: 'Functions should be concise and focused',
-    severity: rc.severity,
-    match(node: any, _context: Context, report: Report): void {
-      if (
-        node.type !== 'function_declaration' &&
-        node.type !== 'function_definition' &&
-        node.type !== 'arrow_function' &&
-        node.type !== 'method_declaration'
-      )
-        return
+    create(config) {
+      const max = config.number('max', { default: 60, min: 1 })
 
-      const lines = node.endPosition.row - node.startPosition.row + 1
-      if (lines <= rc.max) return
-      report({
-        message: `Function is ${lines} lines (max: ${rc.max})`,
-        hint: 'Split this function into smaller, focused functions',
-      })
+      function check(node: SyntaxNode, ctx: RuleContext): void {
+        const lines = node.endPosition.row - node.startPosition.row + 1
+        if (lines <= max) return
+        ctx.report({
+          message: `Function is ${lines} lines (max: ${max})`,
+          hint: 'Split this function into smaller, focused functions',
+        })
+      }
+
+      return {
+        _functionDeclaration: check,
+        _functionDefinition: check,
+        _arrowFunction: check,
+        _methodDeclaration: check,
+        _functionExpression: check,
+        _methodDefinition: check,
+        _constructorDeclaration: check,
+        _anonymousFunction: check,
+      }
     },
-  }))
+  })
 }
