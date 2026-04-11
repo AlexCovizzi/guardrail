@@ -1,12 +1,19 @@
-import { ConfigBuilder } from '../core/types.js'
-import { ConfigValidationError } from './validation.js'
+export class ConfigValidationError extends Error {
+  constructor(ruleId: string, message: string) {
+    super(`Rule "${ruleId}": ${message}`)
+    this.name = 'ConfigValidationError'
+  }
+}
 
-export class ConfigBuilderImpl implements ConfigBuilder {
-  constructor(private ruleId: string, private raw: Record<string, unknown>) {}
+export class RuleConfig {
+  constructor(
+    private ruleId: string,
+    private raw: Record<string, unknown>
+  ) {}
 
   number(key: string, opts: { default: number; min?: number; max?: number }): number {
     const val = this.raw[key] ?? opts.default
-    if (typeof val !== 'number')
+    if (typeof val !== 'number' || !Number.isFinite(val))
       throw new ConfigValidationError(this.ruleId, `option "${key}" must be a number, got ${typeof val}`)
     if (opts.min !== undefined && val < opts.min)
       throw new ConfigValidationError(this.ruleId, `option "${key}" must be >= ${opts.min}, got ${val}`)
@@ -33,10 +40,7 @@ export class ConfigBuilderImpl implements ConfigBuilder {
     return val
   }
 
-  enum<T extends readonly (string | number)[]>(
-    key: string,
-    opts: { values: T; default: T[number] }
-  ): T[number] {
+  enum<T extends readonly (string | number)[]>(key: string, opts: { values: T; default: T[number] }): T[number] {
     const val = this.raw[key] ?? opts.default
     if (!(opts.values as readonly unknown[]).includes(val))
       throw new ConfigValidationError(
@@ -44,5 +48,14 @@ export class ConfigBuilderImpl implements ConfigBuilder {
         `option "${key}" must be one of ${opts.values.map((v) => `"${v}"`).join(', ')}, got "${val}"`
       )
     return val as T[number]
+  }
+
+  isEnabled(): boolean {
+    if (this.raw.enabled !== undefined) return this.raw.enabled as boolean
+    return !(this.raw.disabled as boolean)
+  }
+
+  getSeverity(defaultSeverity?: 'error' | 'warning'): 'error' | 'warning' {
+    return (this.raw.severity as 'error' | 'warning' | undefined) ?? defaultSeverity ?? 'error'
   }
 }

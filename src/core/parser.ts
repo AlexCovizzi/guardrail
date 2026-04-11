@@ -1,6 +1,6 @@
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import * as TreeSitter from 'web-tree-sitter'
-import { dirname, join } from 'path'
-import { createRequire } from 'module'
 import type { LanguageName } from './languages.js'
 
 const require = createRequire(import.meta.url)

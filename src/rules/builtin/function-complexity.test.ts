@@ -1,37 +1,37 @@
-import { describe, it, expect, vi } from 'vitest'
-import { makeNode, makeContext } from '../../test/fixtures.js'
+import { describe, expect, it, vi } from 'vitest'
+import { RuleConfig } from '../../config/rule-config.js'
+import type { SemanticTypeName } from '../../core/languages.js'
+import type { Handler } from '../rule.js'
+import { makeContext, makeNode } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
-import { ConfigBuilderImpl } from '../../config/builder.js'
-import { RuleContext } from '../../core/types.js'
-import { SemanticTypeName } from '../../core/languages.js'
 import registerFunctionComplexity from './function-complexity.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerFunctionComplexity(registry)
-  const [{ id, definition }] = registry.getEntries()
-  const builder = new ConfigBuilderImpl(id, config)
+  const [{ ruleId, definition }] = registry.getEntries()
+  const builder = new RuleConfig(ruleId, config)
   const visitors = definition.create(builder)
   const severity = config.severity ?? definition.defaultSeverity ?? 'error'
-  return { id, description: definition.description, severity, visitors }
+  return { id: ruleId, description: definition.description, severity, visitors }
 }
 
 function callVisitor(rule: ReturnType<typeof getRule>, node: any, ctx: any, report: any) {
-  const ruleCtx: RuleContext = { ...ctx, report }
-  for (const [key, fn] of Object.entries(rule.visitors)) {
+  const ruleCtx = ctx
+  for (const [key, fn] of Object.entries(rule.visitors) as [string, Handler][]) {
     if (fn == null) continue
     const k = key.endsWith('Exit') ? key.slice(0, -4) : key
     if (k.startsWith('_')) {
       const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
-      if (nodeType === node.type) fn(node, ruleCtx)
+      if (nodeType === node.type) fn(node, ruleCtx, report)
     } else if (k in ctx.language.types) {
       const langTypes = ctx.language.types[k as SemanticTypeName]
-      if (langTypes.includes(node.type)) fn(node, ruleCtx)
+      if (langTypes.includes(node.type)) fn(node, ruleCtx, report)
     }
   }
 }
 
-function makeFunction(language: string, branchTypes: string[] = []) {
+function makeFunction(_language: string, branchTypes: string[] = []) {
   const children = branchTypes.map((type) => makeNode(type))
   return makeNode('function_declaration', {
     childCount: children.length,
@@ -120,11 +120,15 @@ describe('function-max-complexity', () => {
     const ctx = makeContext('typescript')
     const report = vi.fn()
     callVisitor(rule, makeFunction('typescript', ['if_statement']), ctx, report)
-    expect(report).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('2'),
-    }))
-    expect(report).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('1'),
-    }))
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('2'),
+      })
+    )
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('1'),
+      })
+    )
   })
 })

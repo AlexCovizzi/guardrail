@@ -1,21 +1,35 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'node:fs'
 import { Command } from 'commander'
 import { Engine } from '../core/engine.js'
-import { loadConfig } from '../config/resolver.js'
-import { readFileSync } from 'fs'
 
 const program = new Command()
 
 program.name('guardrail').description('Enforce bounds on AI-generated code').version('0.1.0')
 
 program
-  .command('check <files...>')
+  .command('check')
+  .argument('[files...]', 'Files to check')
   .description('Check files against rules')
   .option('--format <format>', 'Output format: text or json', 'text')
-  .action(async (files: string[], options: { format: string }) => {
-    const config = loadConfig()
-    const engine = new Engine(config)
+  .option('--claude-code', 'Claude Code hook mode: reads stdin JSON, outputs violations to stderr, exits 2 on failure')
+  .action(async (files: string[], options: { format: string; claudeCode: boolean }) => {
+    const engine = await Engine.create()
+
+    if (options.claudeCode) {
+      const input = await readStdin()
+      const filePath: string | undefined = JSON.parse(input)?.tool_input?.file_path
+      if (!filePath) process.exit(0)
+
+      const source = readFileSync(filePath, 'utf-8')
+      const result = await engine.check(filePath, source)
+      if (!result.passed) {
+        process.stderr.write(`${JSON.stringify(result)}\n`)
+        process.exit(2)
+      }
+      process.exit(0)
+    }
 
     const results = []
     for (const file of files) {
@@ -42,3 +56,13 @@ program
   })
 
 program.parse()
+
+function readStdin(): Promise<string> {
+  return new Promise((resolve) => {
+    let data = ''
+    process.stdin.setEncoding('utf-8')
+    process.stdin.on('data', (chunk) => (data += chunk))
+    process.stdin.on('end', () => resolve(data))
+    if (process.stdin.isTTY) resolve('')
+  })
+}

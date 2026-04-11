@@ -1,14 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { RuleConfig } from '../../config/rule-config.js'
 import { matchesAnyNode } from '../../test/helpers.js'
 import { RuleRegistry } from '../registry.js'
-import { ConfigBuilderImpl } from '../../config/builder.js'
 import registerClassLength from './class-length.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerClassLength(registry)
-  const [{ id, definition }] = registry.getEntries()
-  const builder = new ConfigBuilderImpl(id, config)
+  const [{ ruleId, definition }] = registry.getEntries()
+  const builder = new RuleConfig(ruleId, config)
   return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }
 }
 
@@ -21,20 +21,18 @@ describe('class-max-lines examples', () => {
       },
       {
         description: 'class within max lines',
-        code: Array.from(
-          { length: 8 },
-          (_, i) => (i === 0 ? 'class Foo {' : i === 7 ? '}' : `  x${i} = ${i}`),
-        ).join('\n'),
+        code: Array.from({ length: 8 }, (_, i) => (i === 0 ? 'class Foo {' : i === 7 ? '}' : `  x${i} = ${i}`)).join(
+          '\n'
+        ),
       },
     ]
 
     const invalid = [
       {
         description: 'class exceeding max lines',
-        code: Array.from(
-          { length: 12 },
-          (_, i) => (i === 0 ? 'class Foo {' : i === 11 ? '}' : `  x${i} = ${i}`),
-        ).join('\n'),
+        code: Array.from({ length: 12 }, (_, i) => (i === 0 ? 'class Foo {' : i === 11 ? '}' : `  x${i} = ${i}`)).join(
+          '\n'
+        ),
       },
     ]
 
@@ -86,9 +84,8 @@ describe('class-max-lines examples', () => {
     const invalid = [
       {
         description: 'class exceeding max lines',
-        code: Array.from(
-          { length: 12 },
-          (_, i) => (i === 0 ? 'class Foo {' : i === 11 ? '}' : `  int x${i} = ${i};`),
+        code: Array.from({ length: 12 }, (_, i) =>
+          i === 0 ? 'class Foo {' : i === 11 ? '}' : `  int x${i} = ${i};`
         ).join('\n'),
       },
     ]

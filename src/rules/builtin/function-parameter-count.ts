@@ -1,4 +1,4 @@
-import { Registry, SyntaxNode, RuleContext } from '../../core/types.js'
+import type { FileContext, Registry, ReportFn, SyntaxNode } from '../rule.js'
 
 function countParams(node: SyntaxNode, paramNodeType: string): number {
   for (let i = 0; i < node.childCount; i++) {
@@ -17,13 +17,13 @@ export default function (registry: Registry) {
       const max = config.number('max', { default: 4, min: 0 })
 
       return {
-        function(node: SyntaxNode, ctx: RuleContext): void {
+        function(node: SyntaxNode, ctx: FileContext, report: ReportFn): void {
           const paramNodeType = ctx.language.types.parameters[0]
           if (!paramNodeType) return
 
           const count = countParams(node, paramNodeType)
           if (count <= max) return
-          ctx.report({
+          report({
             message: `Function has ${count} parameters (max: ${max})`,
             hint: 'Group related parameters into an options object',
           })

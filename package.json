@@ -10,6 +10,11 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "check": "biome check . && tsc --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format . --write",
+    "fix": "biome check --write .",
+    "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
   "dependencies": {
@@ -27,7 +32,7 @@
   },
   "devDependencies": {
     "@types/node": "25.5.2",
-    "prettier": "3.8.1",
+    "@biomejs/biome": "2.4.10",
     "tsup": "8.5.1",
     "typescript": "6.0.2",
     "vitest": "4.1.4"

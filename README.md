@@ -50,6 +50,39 @@ The top-level `overrides` key accepts a language name and a `rules` block that i
 
 Cyclomatic complexity starts at 1 and increments for each branch point: `if`, `else if`, loops, `switch` cases, `catch` blocks, ternary expressions.
 
+## Claude Code integration
+
+Guardrail can run automatically after every file edit/write in Claude Code via hooks.
+
+1. Build and link the binary:
+
+```bash
+npm run build && npm link
+```
+
+2. Add the hook to `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "guardrail check --claude-code",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+When a violation is detected, Claude Code will see the error and be blocked from proceeding. Passing files produce no output.
+
 ## Project structure
 
 ```

@@ -1,12 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Rule, RuleContext } from './types.js'
-import { makeNode } from '../test/fixtures.js'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {makeNode} from '../test/fixtures.js'
 import * as languages from './languages.js'
+import {Rule} from "../rules/rule.js";
 
-const { mockParse, mockDetectLanguage, mockLoadRules } = vi.hoisted(() => ({
+const {mockParse, mockDetectLanguage} = vi.hoisted(() => ({
   mockParse: vi.fn(),
   mockDetectLanguage: vi.fn(),
-  mockLoadRules: vi.fn(),
 }))
 
 vi.mock('./parser.js', () => ({
@@ -14,18 +13,21 @@ vi.mock('./parser.js', () => ({
 }))
 
 vi.mock('./languages.js', async (importOriginal) => {
-  const actual = await importOriginal()
-  return { ...actual, detectLanguage: mockDetectLanguage }
+  const actual = await importOriginal<typeof import('./languages.js')>()
+  return {...actual, detectLanguage: mockDetectLanguage}
 })
 
 vi.mock('../rules/loader.js', () => ({
-  loadRules: mockLoadRules,
+  loadRules: vi.fn(),
 }))
 
-const { Engine } = await import('./engine.js')
+const {Engine} = await import('./engine.js')
+type EngineInstance = ReturnType<typeof Engine.createWithRules>
+const {loadRules} = await import('../rules/loader.js')
+const mockLoadRules = vi.mocked(loadRules)
 
 function makeTree(root: any): any {
-  return { walk: () => ({ currentNode: root }) }
+  return {walk: () => ({currentNode: root})}
 }
 
 function makeRule(overrides: Partial<Rule> = {}): Rule {
@@ -46,10 +48,22 @@ beforeEach(() => {
   mockLoadRules.mockResolvedValue([])
 })
 
+async function makeEngineWithRules(rules: Rule[]): Promise<EngineInstance> {
+  const rulesMap = new Map<string, Rule[]>()
+  rulesMap.set('typescript', rules)
+  rulesMap.set('javascript', rules)
+  rulesMap.set('jsx', rules)
+  rulesMap.set('tsx', rules)
+  rulesMap.set('python', rules)
+  rulesMap.set('java', rules)
+  rulesMap.set('kotlin', rules)
+  return Engine.createWithRules(rulesMap)
+}
+
 describe('Engine.check', () => {
   it('returns no violations when no rules match', async () => {
-    mockLoadRules.mockResolvedValue([makeRule({ visitors: {} })])
-    const engine = new Engine({})
+    mockLoadRules.mockResolvedValue([makeRule({visitors: {}})])
+    const engine = await makeEngineWithRules([makeRule({visitors: {}})])
 
     const result = await engine.check('file.ts', 'const x = 1')
 
@@ -58,12 +72,11 @@ describe('Engine.check', () => {
   })
 
   it('returns a violation when a rule matches', async () => {
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
-        visitors: { _testNode: (_n: any, ctx: RuleContext) => ctx.report({ message: 'Test violation' }) },
+        visitors: {_testNode: (_n, _ctx, report) => report({message: 'Test violation'})},
       }),
     ])
-    const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
 
@@ -72,13 +85,12 @@ describe('Engine.check', () => {
   })
 
   it('sets passed: false when there is an error violation', async () => {
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         severity: 'error',
-        visitors: { _testNode: (_n: any, ctx: RuleContext) => ctx.report({ message: 'Test violation' }) },
+        visitors: {_testNode: (_n, _ctx, report) => report({message: 'Test violation'})},
       }),
     ])
-    const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
 
@@ -86,13 +98,12 @@ describe('Engine.check', () => {
   })
 
   it('sets passed: true when violations are warnings only', async () => {
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         severity: 'warning',
-        visitors: { _testNode: (_n: any, ctx: RuleContext) => ctx.report({ message: 'Test violation' }) },
+        visitors: {_testNode: (_n, _ctx, report) => report({message: 'Test violation'})},
       }),
     ])
-    const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
 
@@ -101,13 +112,12 @@ describe('Engine.check', () => {
   })
 
   it('skips disabled rules', async () => {
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         enabled: false,
-        visitors: { _testNode: (_n: any, ctx: RuleContext) => ctx.report({ message: 'Test violation' }) },
+        visitors: {_testNode: (_n, _ctx, report) => report({message: 'Test violation'})},
       }),
     ])
-    const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
 
@@ -116,13 +126,12 @@ describe('Engine.check', () => {
 
   it('skips rules that do not target the detected language', async () => {
     mockDetectLanguage.mockReturnValue(languages.typescript)
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         languages: ['python'],
-        visitors: { _testNode: (_n: any, ctx: RuleContext) => ctx.report({ message: 'Test violation' }) },
+        visitors: {_testNode: (_n, _ctx, report) => report({message: 'Test violation'})},
       }),
     ])
-    const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
 
@@ -131,10 +140,10 @@ describe('Engine.check', () => {
 
   it('walks child nodes', async () => {
     const child = makeNode('child_node')
-    const root = makeNode('root_node', { childCount: 1, child: () => child })
+    const root = makeNode('root_node', {childCount: 1, child: () => child})
     mockParse.mockResolvedValue(makeTree(root))
     const visited: any[] = []
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         visitors: {
           _rootNode: (node: any) => {
@@ -146,7 +155,6 @@ describe('Engine.check', () => {
         },
       }),
     ])
-    const engine = new Engine({})
 
     await engine.check('file.ts', 'const x = 1')
 
@@ -159,7 +167,7 @@ describe('Engine.check', () => {
     const fnNode = makeNode('function_declaration')
     mockParse.mockResolvedValue(makeTree(fnNode))
     const visited: any[] = []
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         visitors: {
           function: (node: any) => {
@@ -168,7 +176,6 @@ describe('Engine.check', () => {
         },
       }),
     ])
-    const engine = new Engine({})
 
     await engine.check('file.ts', '')
 
@@ -176,20 +183,11 @@ describe('Engine.check', () => {
   })
 
   it('does not fire function for languages missing the type', async () => {
-    mockDetectLanguage.mockReturnValue({ name: 'ruby', types: {} })
+    mockDetectLanguage.mockReturnValue({name: 'ruby', types: {}})
     const fnNode = makeNode('function_declaration')
     mockParse.mockResolvedValue(makeTree(fnNode))
     const visited: any[] = []
-    mockLoadRules.mockResolvedValue([
-      makeRule({
-        visitors: {
-          function: (node: any) => {
-            visited.push(node)
-          },
-        },
-      }),
-    ])
-    const engine = new Engine({})
+    const engine = await makeEngineWithRules([])
 
     await engine.check('file.rb', '')
 
@@ -197,15 +195,14 @@ describe('Engine.check', () => {
   })
 
   it('includes hint in violation when rule provides one', async () => {
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         visitors: {
-          _testNode: (_n: any, ctx: RuleContext) =>
-            ctx.report({ message: 'Test violation', hint: 'Split this function' }),
+          _testNode: (_n, _ctx, report) =>
+            report({message: 'Test violation', hint: 'Split this function'}),
         },
       }),
     ])
-    const engine = new Engine({})
 
     const result = await engine.check('file.ts', 'const x = 1')
 
@@ -215,16 +212,15 @@ describe('Engine.check', () => {
   it('passes correct context to visitor', async () => {
     let capturedCtx: any
     mockDetectLanguage.mockReturnValue(languages.typescript)
-    mockLoadRules.mockResolvedValue([
+    const engine = await makeEngineWithRules([
       makeRule({
         visitors: {
-          _testNode: (_: any, ctx: RuleContext) => {
+          _testNode: (_n, ctx) => {
             capturedCtx = ctx
           },
         },
       }),
     ])
-    const engine = new Engine({})
 
     await engine.check('file.ts', 'const x = 1')
 

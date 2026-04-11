@@ -1,15 +1,10 @@
-import { Rule, Config, RuleConfig } from '../core/types.js'
-import { RuleRegistry } from './registry.js'
+import type { LanguageConfig } from '../config/config.js'
 import { registerBuiltins } from './builtin/index.js'
 import { discoverRules } from './discovery.js'
-import { ConfigBuilderImpl } from '../config/builder.js'
+import { RuleRegistry } from './registry.js'
+import {Rule} from "./rule.js";
 
-function isEnabled(rc: RuleConfig): boolean {
-  if (rc.enabled !== undefined) return rc.enabled
-  return !rc.disabled
-}
-
-export async function loadRules(config: Config): Promise<Rule[]> {
+export async function loadRules(langConfig: LanguageConfig): Promise<Rule[]> {
   const registry = new RuleRegistry()
 
   registerBuiltins(registry)
@@ -17,12 +12,17 @@ export async function loadRules(config: Config): Promise<Rule[]> {
   await discoverRules(registry)
 
   const rules: Rule[] = []
-  for (const { id, definition } of registry.getEntries()) {
-    const rc = config.rules?.[id] ?? {}
-    const builder = new ConfigBuilderImpl(id, rc)
-    const visitors = definition.create(builder)
-    const severity = (rc.severity as 'error' | 'warning' | undefined) ?? definition.defaultSeverity ?? 'error'
-    const rule: Rule = { id, description: definition.description, severity, visitors, enabled: isEnabled(rc) }
+  for (const { ruleId, definition } of registry.getEntries()) {
+    const ruleConfig = langConfig.forRule(ruleId)
+    const visitors = definition.create(ruleConfig)
+    const severity = ruleConfig.getSeverity(definition.defaultSeverity)
+    const rule: Rule = {
+      id: ruleId,
+      description: definition.description,
+      severity,
+      visitors,
+      enabled: ruleConfig.isEnabled(),
+    }
 
     if (rule.enabled) rules.push(rule)
   }

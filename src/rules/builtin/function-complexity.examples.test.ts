@@ -1,14 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { RuleConfig } from '../../config/rule-config.js'
 import { matchesAnyNode } from '../../test/helpers.js'
 import { RuleRegistry } from '../registry.js'
-import { ConfigBuilderImpl } from '../../config/builder.js'
 import registerFunctionComplexity from './function-complexity.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerFunctionComplexity(registry)
-  const [{ id, definition }] = registry.getEntries()
-  const builder = new ConfigBuilderImpl(id, config)
+  const [{ ruleId, definition }] = registry.getEntries()
+  const builder = new RuleConfig(ruleId, config)
   return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }
 }
 

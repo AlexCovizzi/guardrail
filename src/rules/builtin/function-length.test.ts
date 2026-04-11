@@ -1,32 +1,32 @@
-import { describe, it, expect, vi } from 'vitest'
-import { makeNode, makeContext } from '../../test/fixtures.js'
+import { describe, expect, it, vi } from 'vitest'
+import { RuleConfig } from '../../config/rule-config.js'
+import type { SemanticTypeName } from '../../core/languages.js'
+import type { Handler } from '../rule.js'
+import { makeContext, makeNode } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
-import { ConfigBuilderImpl } from '../../config/builder.js'
-import { RuleContext } from '../../core/types.js'
-import { SemanticTypeName } from '../../core/languages.js'
 import registerFunctionLength from './function-length.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
   registerFunctionLength(registry)
-  const [{ id, definition }] = registry.getEntries()
-  const builder = new ConfigBuilderImpl(id, config)
+  const [{ ruleId, definition }] = registry.getEntries()
+  const builder = new RuleConfig(ruleId, config)
   const visitors = definition.create(builder)
   const severity = config.severity ?? definition.defaultSeverity ?? 'error'
-  return { id, description: definition.description, severity, visitors }
+  return { id: ruleId, description: definition.description, severity, visitors }
 }
 
 function callVisitor(rule: ReturnType<typeof getRule>, node: any, ctx: any, report: any) {
-  const ruleCtx: RuleContext = { ...ctx, report }
-  for (const [key, fn] of Object.entries(rule.visitors)) {
+  const ruleCtx = ctx
+  for (const [key, fn] of Object.entries(rule.visitors) as [string, Handler][]) {
     if (fn == null) continue
     const k = key.endsWith('Exit') ? key.slice(0, -4) : key
     if (k.startsWith('_')) {
       const nodeType = k.slice(1).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
-      if (nodeType === node.type) fn(node, ruleCtx)
+      if (nodeType === node.type) fn(node, ruleCtx, report)
     } else if (k in ctx.language.types) {
       const langTypes = ctx.language.types[k as SemanticTypeName]
-      if (langTypes.includes(node.type)) fn(node, ruleCtx)
+      if (langTypes.includes(node.type)) fn(node, ruleCtx, report)
     }
   }
 }
@@ -70,9 +70,9 @@ describe('function-max-lines', () => {
 
   it.each([
     { type: 'function_declaration', language: 'typescript' },
-    { type: 'function_definition',  language: 'python' },
-    { type: 'arrow_function',       language: 'typescript' },
-    { type: 'method_declaration',   language: 'java' },
+    { type: 'function_definition', language: 'python' },
+    { type: 'arrow_function', language: 'typescript' },
+    { type: 'method_declaration', language: 'java' },
   ])('matches $type node type in $language', ({ type, language }) => {
     const rule = getRule({ max: 5 })
     const ctx = makeContext(language)
@@ -94,11 +94,15 @@ describe('function-max-lines', () => {
     const ctx = makeContext('typescript')
     const report = vi.fn()
     callVisitor(rule, makeFunction('function_declaration', 0, 10), ctx, report)
-    expect(report).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('11'),
-    }))
-    expect(report).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining('5'),
-    }))
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('11'),
+      })
+    )
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('5'),
+      })
+    )
   })
 })

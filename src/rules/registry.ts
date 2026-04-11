@@ -1,18 +1,21 @@
-import { Registry, RuleDefinition } from '../core/types.js'
+import {RuleDefinition} from "./rule.js";
 
-type Entry = {
-  id: string
+type RuleEntry = {
+  ruleId: string
   definition: RuleDefinition
 }
 
-export class RuleRegistry implements Registry {
-  private entries: Entry[] = []
+export class RuleRegistry {
+  private entries: RuleEntry[] = []
 
-  register(id: string, definition: RuleDefinition): void {
-    this.entries.push({ id, definition })
+  register(ruleId: string, definition: RuleDefinition): void {
+    if (this.entries.some((e) => e.ruleId === ruleId)) {
+      throw new Error(`Duplicate rule registration: "${ruleId}"`)
+    }
+    this.entries.push({ruleId, definition})
   }
 
-  getEntries(): Entry[] {
-    return this.entries
+  getEntries(): RuleEntry[] {
+    return [...this.entries]
   }
 }

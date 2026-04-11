@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./dist/index.js check --claude-code",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

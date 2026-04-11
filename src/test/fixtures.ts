@@ -1,4 +1,4 @@
-import { LanguageDefinition, LANGUAGES } from '../core/languages.js'
+import { LANGUAGES, type LanguageDefinition } from '../core/languages.js'
 
 export function makeNode(type: string, overrides: Record<string, any> = {}): any {
   return {

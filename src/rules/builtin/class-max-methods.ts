@@ -1,4 +1,4 @@
-import { Registry, SyntaxNode, RuleContext } from '../../core/types.js'
+import type { FileContext, Registry, ReportFn, SyntaxNode } from '../rule.js'
 
 function countMethods(node: SyntaxNode, functionTypes: Set<string>, classTypes: Set<string>): number {
   let count = 0
@@ -37,12 +37,12 @@ export default function (registry: Registry) {
       const max = config.number('max', { default: 20, min: 1 })
 
       return {
-        class(node: SyntaxNode, ctx: RuleContext): void {
+        class(node: SyntaxNode, ctx: FileContext, report: ReportFn): void {
           const functionTypes = new Set(ctx.language.types.function)
           const classTypes = new Set(ctx.language.types.class)
           const count = countMethods(node, functionTypes, classTypes)
           if (count <= max) return
-          ctx.report({
+          report({
             message: `Class has ${count} methods (max: ${max})`,
             hint: 'Extract responsibilities into separate classes',
           })
