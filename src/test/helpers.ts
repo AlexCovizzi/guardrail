@@ -1,7 +1,7 @@
-import {resolveSelector} from '../core/engine.js'
-import {LANGUAGES, type LanguageDefinition} from '../core/languages.js'
-import {parse} from '../core/parser.js'
-import {FileContext, Handler, Rule, SyntaxNode} from "../rules/rule.js";
+import { resolveSelector } from '../core/engine.js'
+import { LANGUAGES, type LanguageDefinition } from '../core/languages.js'
+import { parse } from '../core/parser.js'
+import { FileContext, Handler, Rule, SyntaxNode } from '../rules/rule.js'
 
 export async function matchesAnyNode(
   rule: Omit<Rule, 'id'>,
@@ -13,7 +13,7 @@ export async function matchesAnyNode(
   const tree = await parse(source, langDef)
   if (!tree) throw new Error('Parse failed')
 
-  const context: FileContext = {source, filename: `file.${langDef.name}`, language: langDef, tree}
+  const context: FileContext = { source, filename: `file.${langDef.name}`, language: langDef, tree }
   const stack: any[] = [tree.rootNode]
 
   while (stack.length > 0) {
@@ -21,7 +21,7 @@ export async function matchesAnyNode(
     for (const [rawKey, fn] of Object.entries(rule.visitors) as [string, Handler][]) {
       if (fn == null) continue
       const resolved = resolveSelector(rawKey, langDef)
-      for (const {nodeType, isExit} of resolved) {
+      for (const { nodeType, isExit } of resolved) {
         if (isExit || nodeType !== node.type) continue
         let matched = false
         const report = () => {

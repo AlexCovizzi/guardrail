@@ -1,8 +1,8 @@
-import {Config} from '../config/config.js'
-import {loadRules} from '../rules/loader.js'
-import {detectLanguage, LANGUAGES, type LanguageDefinition, type SemanticTypeName} from './languages.js'
-import {parse} from './parser.js'
-import {Handler, Rule, FileContext, ReportFn, Location} from "../rules/rule.js";
+import { Config } from '../config/config.js'
+import { discoverAllRules, instantiateRules } from '../rules/loader.js'
+import { detectLanguage, LANGUAGES, type LanguageDefinition, type SemanticTypeName } from './languages.js'
+import { parse, ParseError } from './parser.js'
+import { Handler, Rule, FileContext, ReportFn, Location } from '../rules/rule.js'
 
 export interface Violation {
   ruleId: string
@@ -34,10 +34,10 @@ export function resolveSelector(
     isExit = true
   }
   if (k.startsWith('_')) {
-    return [{nodeType: camelToSnake(k.slice(1)), isExit}]
+    return [{ nodeType: camelToSnake(k.slice(1)), isExit }]
   }
   if (k in language.types) {
-    return (language.types[k as SemanticTypeName] as readonly string[]).map((nodeType) => ({nodeType, isExit}))
+    return (language.types[k as SemanticTypeName] as readonly string[]).map((nodeType) => ({ nodeType, isExit }))
   }
   return []
 }
@@ -51,10 +51,10 @@ function buildDispatchMap(rules: Rule[], language: LanguageDefinition): Dispatch
     for (const [rawKey, fn] of Object.entries(rule.visitors)) {
       if (fn == null) continue
       const resolved = resolveSelector(rawKey, language)
-      for (const {nodeType, isExit} of resolved) {
+      for (const { nodeType, isExit } of resolved) {
         const key = isExit ? `${nodeType}:exit` : nodeType
         if (!map.has(key)) map.set(key, [])
-        map.get(key)?.push({rule, fn})
+        map.get(key)?.push({ rule, fn })
       }
     }
   }
@@ -62,30 +62,42 @@ function buildDispatchMap(rules: Rule[], language: LanguageDefinition): Dispatch
 }
 
 export class Engine {
-  private constructor(private rulesByLanguage: Map<string, Rule[]>) {
-  }
+  private constructor(
+    private rulesByLanguage: Map<string, Rule[]>,
+    private ignorePatterns: string[]
+  ) {}
 
   static async create(cwd?: string): Promise<Engine> {
     const config = Config.load(cwd)
+    const registry = await discoverAllRules()
+
+    const knownIds = new Set(registry.getEntries().map((e) => e.ruleId))
+    for (const id of config.getConfiguredRuleIds()) {
+      if (!knownIds.has(id)) {
+        process.stderr.write(`guardrail: unknown rule "${id}" in config\n`)
+      }
+    }
+
     const rulesByLanguage = new Map<string, Rule[]>()
     for (const lang of Object.values(LANGUAGES)) {
-      const configLanguage = config.forLanguage(lang.name)
-      const rulesForLanguage = await loadRules(configLanguage)
-      rulesByLanguage.set(lang.name, rulesForLanguage)
+      rulesByLanguage.set(lang.name, instantiateRules(registry, config.forLanguage(lang.name)))
     }
-    return new Engine(rulesByLanguage)
+    return new Engine(rulesByLanguage, config.getIgnorePatterns())
   }
 
   static createWithRules(rulesByLanguage: Map<string, Rule[]>): Engine {
-    return new Engine(rulesByLanguage)
+    return new Engine(rulesByLanguage, [])
+  }
+
+  getIgnorePatterns(): string[] {
+    return this.ignorePatterns
   }
 
   async check(filename: string, source: string): Promise<Result> {
     const language = detectLanguage(filename)
     const rules = this.rulesByLanguage.get(language.name) ?? []
-    const tree = await parse(source, language)
-    if (!tree) throw Error('Error parsing')
-    const context: FileContext = {source, filename, language, tree}
+    const tree = await parse(source, language, filename)
+    const context: FileContext = { source, filename, language, tree }
     const violations: Violation[] = []
 
     const activeRules = rules.filter(
@@ -101,21 +113,21 @@ export class Engine {
       const entries = dispatchMap.get(key)
 
       if (entries) {
-        for (const {rule, fn} of entries) {
-          const report: ReportFn = ({message, hint}) => {
+        for (const { rule, fn } of entries) {
+          const report: ReportFn = ({ message, hint }) => {
             violations.push({
               ruleId: rule.id,
               message,
               description: rule.description,
               location: {
-                start: {line: node.startPosition.row + 1, column: node.startPosition.column},
-                end: {line: node.endPosition.row + 1, column: node.endPosition.column},
+                start: { line: node.startPosition.row + 1, column: node.startPosition.column },
+                end: { line: node.endPosition.row + 1, column: node.endPosition.column },
               },
               severity: rule.severity,
               hint,
             })
           }
-          fn(node, {...context}, report)
+          fn(node, { ...context }, report)
         }
       }
 

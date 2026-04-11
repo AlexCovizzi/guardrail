@@ -40,11 +40,29 @@ export async function initParser(): Promise<void> {
   initialized = true
 }
 
-export async function parse(source: string, language: { name: string }): Promise<TreeSitter.Tree | null> {
+export class ParseError extends Error {
+  constructor(
+    public readonly filename: string,
+    public readonly languageName: string,
+    public readonly cause?: unknown
+  ) {
+    super(`Failed to parse ${filename} (${languageName})`)
+    this.name = 'ParseError'
+  }
+}
+
+export async function parse(source: string, language: { name: string }, filename?: string): Promise<TreeSitter.Tree> {
   await initParser()
 
-  const parser = new TreeSitter.Parser()
-  parser.setLanguage(await getTreeSitterLanguage(language.name))
+  try {
+    const parser = new TreeSitter.Parser()
+    parser.setLanguage(await getTreeSitterLanguage(language.name))
 
-  return parser.parse(source)
+    const tree = parser.parse(source)
+    if (!tree) throw new ParseError(filename ?? '<unknown>', language.name)
+    return tree
+  } catch (err) {
+    if (err instanceof ParseError) throw err
+    throw new ParseError(filename ?? '<unknown>', language.name, err)
+  }
 }

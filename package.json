@@ -3,19 +3,23 @@
   "version": "1.0.0",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/cli/index.js",
   "bin": {
     "guardrail": "./dist/cli/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "check": "biome check . && tsc --noEmit",
     "lint": "biome lint .",
     "format": "biome format . --write",
     "fix": "biome check --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@tree-sitter-grammars/tree-sitter-kotlin": "1.1.0",
@@ -24,6 +28,7 @@
     "cosmiconfig-typescript-loader": "6.3.0",
     "env-paths": "4.0.0",
     "jiti": "2.6.1",
+    "tinyglobby": "0.2.16",
     "tree-sitter-java": "0.23.5",
     "tree-sitter-javascript": "0.25.0",
     "tree-sitter-python": "0.25.0",
@@ -31,9 +36,8 @@
     "web-tree-sitter": "0.26.8"
   },
   "devDependencies": {
-    "@types/node": "25.5.2",
     "@biomejs/biome": "2.4.10",
-    "tsup": "8.5.1",
+    "@types/node": "25.5.2",
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   }

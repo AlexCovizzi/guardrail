@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {RuleRegistry} from "./registry.js";
+import { RuleRegistry } from './registry.js'
 
 const mockJitiImport = vi.fn()
 
@@ -81,8 +81,8 @@ describe('discoverRules', () => {
     mockExistsSync.mockReturnValue(true)
     mockReaddirSync.mockReturnValueOnce(['global-rule.js'] as any).mockReturnValueOnce(['local-rule.js'] as any)
     mockJitiImport
-      .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('global-rule', {} as any)})
-      .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('local-rule', {} as any)})
+      .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('global-rule', {} as any) })
+      .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('local-rule', {} as any) })
 
     const registry = makeRegistry()
     await discoverRules(registry)
@@ -135,12 +135,39 @@ describe('discoverRules', () => {
     mockJitiImport
       .mockRejectedValueOnce(new Error('syntax error'))
       .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('good-rule', {} as any) })
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     const registry = makeRegistry()
     await discoverRules(registry)
 
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('bad-rule.js'))
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('bad-rule.js'))
     expect(registry.calls).toEqual(['good-rule'])
+  })
+
+  it('registers RuleDefinition objects using filename as rule id', async () => {
+    existsOnlyIn(LOCAL_DIR)
+    mockReaddirSync.mockReturnValue(['my-custom-rule.ts'] as any)
+    mockJitiImport.mockResolvedValue({
+      default: {
+        description: 'A custom rule',
+        create: () => ({}),
+      },
+    })
+
+    const registry = makeRegistry()
+    await discoverRules(registry)
+
+    expect(registry.calls).toEqual(['my-custom-rule'])
+  })
+
+  it('warns when export is neither a function nor a RuleDefinition', async () => {
+    existsOnlyIn(LOCAL_DIR)
+    mockReaddirSync.mockReturnValue(['bad-export.js'] as any)
+    mockJitiImport.mockResolvedValue({ default: 'not a rule' })
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await discoverRules(makeRegistry())
+
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('expected a RuleDefinition'))
   })
 })

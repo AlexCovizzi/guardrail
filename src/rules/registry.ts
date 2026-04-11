@@ -1,4 +1,4 @@
-import {RuleDefinition} from "./rule.js";
+import { RuleDefinition } from './rule.js'
 
 type RuleEntry = {
   ruleId: string
@@ -12,7 +12,7 @@ export class RuleRegistry {
     if (this.entries.some((e) => e.ruleId === ruleId)) {
       throw new Error(`Duplicate rule registration: "${ruleId}"`)
     }
-    this.entries.push({ruleId, definition})
+    this.entries.push({ ruleId, definition })
   }
 
   getEntries(): RuleEntry[] {

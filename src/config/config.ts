@@ -15,6 +15,7 @@ const explorer = cosmiconfigSync('guardrail', {
 interface RawConfig {
   rules?: Record<string, Record<string, unknown>>
   overrides?: Record<string, { rules?: Record<string, Record<string, unknown>> }>
+  ignore?: string[]
 }
 
 function loadGlobalConfig(): RawConfig {
@@ -34,6 +35,9 @@ function mergeConfigs(base: RawConfig, override: RawConfig): RawConfig {
   }
   const overrides = mergeOverrides(base.overrides, override.overrides)
   if (overrides) merged.overrides = overrides
+  if (base.ignore || override.ignore) {
+    merged.ignore = [...(base.ignore ?? []), ...(override.ignore ?? [])]
+  }
   return merged
 }
 
@@ -80,6 +84,11 @@ function validateStructure(raw: RawConfig): void {
       }
     }
   }
+  if (raw.ignore !== undefined) {
+    if (!Array.isArray(raw.ignore) || !raw.ignore.every((v) => typeof v === 'string')) {
+      throw new ConfigLoadError('"ignore" must be an array of glob strings')
+    }
+  }
 }
 
 export class ConfigLoadError extends Error {
@@ -102,6 +111,19 @@ export class Config {
 
   forLanguage(language: string): LanguageConfig {
     return new LanguageConfig(this.data, language)
+  }
+
+  getConfiguredRuleIds(): Set<string> {
+    const ids = new Set<string>()
+    for (const id of Object.keys(this.data.rules ?? {})) ids.add(id)
+    for (const override of Object.values(this.data.overrides ?? {})) {
+      for (const id of Object.keys(override.rules ?? {})) ids.add(id)
+    }
+    return ids
+  }
+
+  getIgnorePatterns(): string[] {
+    return this.data.ignore ?? []
   }
 }
 

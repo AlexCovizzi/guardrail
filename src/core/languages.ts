@@ -1,15 +1,4 @@
-export interface LanguageDefinition {
-  name: string
-  types: {
-    function: readonly string[]
-    class: readonly string[]
-    import: readonly string[]
-    branch: readonly string[]
-    parameters: readonly string[]
-  }
-}
-
-export const javascript: LanguageDefinition = {
+const javascript: LanguageDefinition = {
   name: 'javascript',
   types: {
     function: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
@@ -30,70 +19,13 @@ export const javascript: LanguageDefinition = {
   },
 }
 
-export const jsx: LanguageDefinition = {
-  name: 'jsx',
-  types: {
-    function: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
-    class: ['class_declaration', 'class'],
-    import: ['import_statement'],
-    branch: [
-      'if_statement',
-      'for_statement',
-      'for_in_statement',
-      'for_of_statement',
-      'while_statement',
-      'do_statement',
-      'switch_case',
-      'catch_clause',
-      'ternary_expression',
-    ],
-    parameters: ['formal_parameters'],
-  },
-}
+const jsx: LanguageDefinition = { ...javascript, name: 'jsx' }
 
-export const typescript: LanguageDefinition = {
-  name: 'typescript',
-  types: {
-    function: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
-    class: ['class_declaration', 'class'],
-    import: ['import_statement'],
-    branch: [
-      'if_statement',
-      'for_statement',
-      'for_in_statement',
-      'for_of_statement',
-      'while_statement',
-      'do_statement',
-      'switch_case',
-      'catch_clause',
-      'ternary_expression',
-    ],
-    parameters: ['formal_parameters'],
-  },
-}
+const typescript: LanguageDefinition = { ...javascript, name: 'typescript' }
 
-export const tsx: LanguageDefinition = {
-  name: 'tsx',
-  types: {
-    function: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
-    class: ['class_declaration', 'class'],
-    import: ['import_statement'],
-    branch: [
-      'if_statement',
-      'for_statement',
-      'for_in_statement',
-      'for_of_statement',
-      'while_statement',
-      'do_statement',
-      'switch_case',
-      'catch_clause',
-      'ternary_expression',
-    ],
-    parameters: ['formal_parameters'],
-  },
-}
+const tsx: LanguageDefinition = { ...javascript, name: 'tsx' }
 
-export const python: LanguageDefinition = {
+const python: LanguageDefinition = {
   name: 'python',
   types: {
     function: ['function_definition'],
@@ -111,7 +43,7 @@ export const python: LanguageDefinition = {
   },
 }
 
-export const java: LanguageDefinition = {
+const java: LanguageDefinition = {
   name: 'java',
   types: {
     function: ['method_declaration', 'constructor_declaration', 'compact_constructor_declaration'],
@@ -131,7 +63,7 @@ export const java: LanguageDefinition = {
   },
 }
 
-export const kotlin: LanguageDefinition = {
+const kotlin: LanguageDefinition = {
   name: 'kotlin',
   types: {
     function: ['function_declaration', 'anonymous_function', 'lambda_expression', 'getter', 'setter', 'init_clause'],
@@ -142,7 +74,16 @@ export const kotlin: LanguageDefinition = {
   },
 }
 
-export type LanguageName = 'javascript' | 'jsx' | 'typescript' | 'tsx' | 'python' | 'java' | 'kotlin'
+export interface LanguageDefinition {
+  name: string
+  types: {
+    function: readonly string[]
+    class: readonly string[]
+    import: readonly string[]
+    branch: readonly string[]
+    parameters: readonly string[]
+  }
+}
 
 export const LANGUAGES: Record<string, LanguageDefinition> = {
   javascript,
@@ -154,11 +95,13 @@ export const LANGUAGES: Record<string, LanguageDefinition> = {
   kotlin,
 }
 
+export type LanguageName = keyof typeof LANGUAGES
+
 export type SemanticTypeName = keyof LanguageDefinition['types']
 
 export function detectLanguage(filename: string): LanguageDefinition {
   const ext = filename.slice(filename.lastIndexOf('.'))
-  let name: string
+  let name: LanguageName
   switch (ext) {
     case '.tsx':
       name = 'tsx'

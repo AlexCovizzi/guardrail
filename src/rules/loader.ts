@@ -1,16 +1,18 @@
 import type { LanguageConfig } from '../config/config.js'
 import { registerBuiltins } from './builtin/index.js'
 import { discoverRules } from './discovery.js'
+import { RuleDefinition } from './rule.js'
 import { RuleRegistry } from './registry.js'
-import {Rule} from "./rule.js";
+import { Rule } from './rule.js'
 
-export async function loadRules(langConfig: LanguageConfig): Promise<Rule[]> {
+export async function discoverAllRules(): Promise<RuleRegistry> {
   const registry = new RuleRegistry()
-
   registerBuiltins(registry)
-
   await discoverRules(registry)
+  return registry
+}
 
+export function instantiateRules(registry: RuleRegistry, langConfig: LanguageConfig): Rule[] {
   const rules: Rule[] = []
   for (const { ruleId, definition } of registry.getEntries()) {
     const ruleConfig = langConfig.forRule(ruleId)

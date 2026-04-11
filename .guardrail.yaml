@@ -1,6 +1,6 @@
 rules:
   function-max-lines:
-    max: 10
+    max: 60
   function-max-params:
     max: 5
   no-console:
