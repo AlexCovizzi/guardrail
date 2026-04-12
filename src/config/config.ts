@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { cosmiconfigSync } from 'cosmiconfig'
 import { TypeScriptLoader } from 'cosmiconfig-typescript-loader'
@@ -18,10 +18,54 @@ interface RawConfig {
   ignore?: string[]
 }
 
+const GLOBAL_CONFIG_DIR = envPaths('guardrail', { suffix: '' }).config
+const GLOBAL_CONFIG_PATH = join(GLOBAL_CONFIG_DIR, 'config.yaml')
+
+const DEFAULT_CONFIG = `# Guardrail global configuration
+# https://github.com/alexcovizzi/guardrail
+
+ignore:
+  # General
+  - .git
+  - vendor
+
+  # JavaScript / TypeScript
+  - node_modules
+  - dist
+  - .next
+  - .nuxt
+  - coverage
+  - "*.min.js"
+  - "*.min.jsx"
+  - "*.min.ts"
+  - "*.min.tsx"
+
+  # Python
+  - __pycache__
+  - .venv
+  - venv
+  - env
+  - .tox
+  - .mypy_cache
+  - "*.pyc"
+
+  # Java / Kotlin
+  - build
+  - out
+  - target
+  - .gradle
+  - .idea
+`
+
+function ensureGlobalConfig(): void {
+  if (existsSync(GLOBAL_CONFIG_PATH)) return
+  mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true })
+  writeFileSync(GLOBAL_CONFIG_PATH, DEFAULT_CONFIG)
+}
+
 function loadGlobalConfig(): RawConfig {
-  const configFile = join(envPaths('guardrail', { suffix: '' }).config, 'config.yaml')
-  if (!existsSync(configFile)) return {}
-  return (explorer.load(configFile)?.config as RawConfig) ?? {}
+  if (!existsSync(GLOBAL_CONFIG_PATH)) return {}
+  return (explorer.load(GLOBAL_CONFIG_PATH)?.config as RawConfig) ?? {}
 }
 
 function loadLocalConfig(cwd: string): RawConfig {
@@ -102,11 +146,30 @@ export class Config {
   private constructor(private data: RawConfig) {}
 
   static load(cwd: string = process.cwd()): Config {
+    ensureGlobalConfig()
     const globalConfig = loadGlobalConfig()
     const localConfig = loadLocalConfig(cwd)
     validateStructure(globalConfig)
     validateStructure(localConfig)
     return new Config(mergeConfigs(globalConfig, localConfig))
+  }
+
+  static loadRaw(cwd: string = process.cwd()): { global: RawConfig; local: RawConfig; merged: RawConfig } {
+    ensureGlobalConfig()
+    const globalConfig = loadGlobalConfig()
+    const localConfig = loadLocalConfig(cwd)
+    validateStructure(globalConfig)
+    validateStructure(localConfig)
+    return { global: globalConfig, local: localConfig, merged: mergeConfigs(globalConfig, localConfig) }
+  }
+
+  static getGlobalConfigPath(): string {
+    return GLOBAL_CONFIG_PATH
+  }
+
+  static getLocalConfigPath(cwd: string): string | null {
+    const result = explorer.search(cwd)
+    return result?.filepath ?? null
   }
 
   forLanguage(language: string): LanguageConfig {

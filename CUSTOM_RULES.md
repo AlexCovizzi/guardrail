@@ -7,7 +7,7 @@ Guardrail lets you write your own rules in TypeScript or JavaScript. Place them 
 Each file exports a **register function**. It receives a `register` callback — call it with a rule ID and a `RuleDefinition`.
 
 ```ts
-import type { RegisterFn } from 'guardrail'
+import type { RegisterFn } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('my-rule-id', {
@@ -127,7 +127,7 @@ config.enum(key, { values: ['a', 'b'], default: 'a' })    // string | number
 
 ```ts
 // .guardrail/rules/no-console.ts
-import type { RegisterFn, SyntaxNode } from 'guardrail'
+import type { RegisterFn, SyntaxNode } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('no-console', {
@@ -157,7 +157,7 @@ Copy this to get started:
 
 ```ts
 // .guardrail/rules/<rule-name>.ts
-import type { RegisterFn } from 'guardrail'
+import type { RegisterFn } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('<rule-name>', {

@@ -1,7 +1,7 @@
 // Example custom rule: limit nesting depth
 // Place in .guardrail/rules/max-nesting.ts  for a project-local rule
 // or ~/.config/guardrail/rules/max-nesting.ts for a global rule
-import type { RegisterFn, SyntaxNode } from 'guardrail'
+import type { RegisterFn, SyntaxNode } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('max-nesting', {

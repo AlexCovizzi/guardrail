@@ -1,6 +1,6 @@
 # guardrail
 
-[![npm version](https://img.shields.io/npm/v/guardrail.svg)](https://www.npmjs.com/package/guardrail)
+[![npm version](https://img.shields.io/npm/v/@alexcvzz/guardrail.svg)](https://www.npmjs.com/package/@alexcvzz/guardrail)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 A static analysis tool that catches the patterns LLMs consistently produce: oversized functions, excessive complexity, too many parameters, bloated classes. Run it as a post-generation hook or CI gate to keep AI-written code honest.
@@ -8,13 +8,13 @@ A static analysis tool that catches the patterns LLMs consistently produce: over
 ## Install
 
 ```bash
-npm install --save-dev guardrail
+npm install --save-dev @alexcvzz/guardrail
 ```
 
 Or run directly:
 
 ```bash
-npx guardrail check src/**/*.ts
+npx @alexcvzz/guardrail check src/**/*.ts
 ```
 
 ## Usage

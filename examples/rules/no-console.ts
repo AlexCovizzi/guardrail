@@ -1,7 +1,7 @@
 // Example custom rule: disallow console statements
 // Place in .guardrail/rules/no-console.ts  for a project-local rule
 // or ~/.config/guardrail/rules/max-nesting.ts for a global rule
-import type { RegisterFn, SyntaxNode } from 'guardrail'
+import type { RegisterFn, SyntaxNode } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('no-console', {

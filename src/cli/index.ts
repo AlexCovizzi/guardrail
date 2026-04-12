@@ -10,13 +10,13 @@ import { discoverRules } from '../rules/discovery.js'
 import { RuleRegistry } from '../rules/registry.js'
 import { Engine } from '../core/engine.js'
 import { ParseError } from '../core/parser.js'
-import { ConfigLoadError } from '../config/config.js'
+import { Config, ConfigLoadError } from '../config/config.js'
 
 const SUPPORTED_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'kt', 'kts']
 
 const program = new Command()
 
-program.name('guardrail').description('Enforce bounds on AI-generated code').version('0.1.0')
+program.name('guardrail').description('Enforce bounds on AI-generated code').version('1.0.0')
 
 const ruleCommand = program.command('rule').description('Rule management commands')
 
@@ -24,7 +24,7 @@ ruleCommand.addCommand(
   new Command('add')
     .argument('<name>', 'Rule name (kebab-case)')
     .description('Scaffold a new custom rule')
-    .option('--scope <scope>', 'Where to add the rule: local or global', 'local')
+    .option('--scope <scope>', 'Where to add the rule: local or global', 'global')
     .action((name: string, options: { scope: string }) => {
       if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name)) {
         process.stderr.write(`guardrail: rule name must be kebab-case (e.g. my-rule, no-console)\n`)
@@ -45,7 +45,7 @@ ruleCommand.addCommand(
 
       mkdirSync(rulesDir, { recursive: true })
 
-      const template = `import type { RegisterFn } from 'guardrail'
+      const template = `import type { RegisterFn } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('${name}', {
@@ -141,7 +141,7 @@ program
       process.exit(0)
     }
 
-    const expanded = expandInputs(files, engine.getIgnorePatterns())
+    const expanded = expandInputs(files.length === 0 ? ['.'] : files, engine.getIgnorePatterns())
 
     const results = []
     for (const file of expanded) {
@@ -186,7 +186,36 @@ program
     process.exit(hasErrors ? 1 : 0)
   })
 
+program
+  .command('config')
+  .description('Print configuration (global, local, merged)')
+  .action(async () => {
+    let raw: Awaited<ReturnType<typeof Config.loadRaw>>
+    try {
+      raw = Config.loadRaw()
+    } catch (err) {
+      if (err instanceof ConfigLoadError) {
+        process.stderr.write(`guardrail: ${err.message}\n`)
+        process.exit(1)
+      }
+      throw err
+    }
+
+    const localPath = Config.getLocalConfigPath(process.cwd())
+
+    console.log(`# Global: ${Config.getGlobalConfigPath()}`)
+    console.log(stringifyConfig(raw.global))
+    console.log(`# Local: ${localPath ?? '(none found)'}`)
+    console.log(stringifyConfig(raw.local))
+    console.log('# Merged')
+    console.log(stringifyConfig(raw.merged))
+  })
+
 program.parse()
+
+function stringifyConfig(data: object): string {
+  return JSON.stringify(data, null, 2)
+}
 
 function expandInputs(inputs: string[], ignorePatterns: string[]): string[] {
   const result: string[] = []

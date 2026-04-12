@@ -1,6 +1,6 @@
 {
-  "name": "guardrail",
-  "version": "1.0.0",
+  "name": "@alexcvzz/guardrail",
+  "version": "0.0.1",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cli/index.js",
