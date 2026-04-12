@@ -1,3 +1,6 @@
 .idea/
+.claude/
 node_modules/
 dist/
+.guardrail/
+.guardrail.yaml
