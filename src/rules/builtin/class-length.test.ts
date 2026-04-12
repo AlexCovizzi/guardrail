@@ -8,7 +8,7 @@ import registerClassLength from './class-length.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
-  registerClassLength(registry)
+  registerClassLength(registry.register.bind(registry))
   const [{ ruleId, definition }] = registry.getEntries()
   const builder = new RuleConfig(ruleId, config)
   const visitors = definition.create(builder)

@@ -1,4 +1,4 @@
-import type { FileContext, Registry, ReportFn, SyntaxNode } from '../rule.js'
+import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
 
 function cyclomaticComplexity(node: SyntaxNode, branchTypes: Set<string>): number {
   let complexity = 1
@@ -13,8 +13,8 @@ function cyclomaticComplexity(node: SyntaxNode, branchTypes: Set<string>): numbe
   return complexity
 }
 
-export default function (registry: Registry) {
-  registry.register('function-max-complexity', {
+export default function (register: RegisterFn) {
+  register('function-max-complexity', {
     description: 'Functions should have low cyclomatic complexity',
     create(config) {
       const max = config.number('max', { default: 10, min: 1 })

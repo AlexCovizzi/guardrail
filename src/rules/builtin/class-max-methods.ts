@@ -1,4 +1,4 @@
-import type { FileContext, Registry, ReportFn, SyntaxNode } from '../rule.js'
+import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
 
 function countMethods(node: SyntaxNode, functionTypes: Set<string>, classTypes: Set<string>): number {
   let count = 0
@@ -30,8 +30,8 @@ function countMethods(node: SyntaxNode, functionTypes: Set<string>, classTypes: 
   return count
 }
 
-export default function (registry: Registry) {
-  registry.register('class-max-methods', {
+export default function (register: RegisterFn) {
+  register('class-max-methods', {
     description: 'Classes should not have too many methods',
     create(config) {
       const max = config.number('max', { default: 20, min: 1 })

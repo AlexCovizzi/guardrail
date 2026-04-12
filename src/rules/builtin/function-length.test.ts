@@ -8,7 +8,7 @@ import registerFunctionLength from './function-length.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
-  registerFunctionLength(registry)
+  registerFunctionLength(registry.register.bind(registry))
   const [{ ruleId, definition }] = registry.getEntries()
   const builder = new RuleConfig(ruleId, config)
   const visitors = definition.create(builder)

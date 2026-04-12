@@ -6,7 +6,7 @@ import registerFunctionParameterCount from './function-parameter-count.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
-  registerFunctionParameterCount(registry)
+  registerFunctionParameterCount(registry.register.bind(registry))
   const [{ ruleId, definition }] = registry.getEntries()
   const builder = new RuleConfig(ruleId, config)
   return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }

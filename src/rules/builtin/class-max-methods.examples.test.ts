@@ -6,7 +6,7 @@ import registerClassMaxMethods from './class-max-methods.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
-  registerClassMaxMethods(registry)
+  registerClassMaxMethods(registry.register.bind(registry))
   const [{ ruleId, definition }] = registry.getEntries()
   const builder = new RuleConfig(ruleId, config)
   return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }

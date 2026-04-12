@@ -46,9 +46,7 @@ export interface RuleContext extends FileContext {
   report: ReportFn
 }
 
-export interface Registry {
-  register(id: string, definition: RuleDefinition): void
-}
+export type RegisterFn = (id: string, definition: RuleDefinition) => void
 
 export interface RuleDefinition {
   description: string

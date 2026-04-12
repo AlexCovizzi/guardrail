@@ -1,4 +1,4 @@
-import type { FileContext, Registry, ReportFn, SyntaxNode } from '../rule.js'
+import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
 
 function countParams(node: SyntaxNode, paramNodeType: string): number {
   for (let i = 0; i < node.childCount; i++) {
@@ -10,8 +10,8 @@ function countParams(node: SyntaxNode, paramNodeType: string): number {
   return 0
 }
 
-export default function (registry: Registry) {
-  registry.register('function-max-params', {
+export default function (register: RegisterFn) {
+  register('function-max-params', {
     description: 'Functions should have a limited number of parameters',
     create(config) {
       const max = config.number('max', { default: 4, min: 0 })

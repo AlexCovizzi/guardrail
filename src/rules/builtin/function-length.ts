@@ -1,7 +1,7 @@
-import type { FileContext, Registry, ReportFn, SyntaxNode } from '../rule.js'
+import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
 
-export default function (registry: Registry) {
-  registry.register('function-max-lines', {
+export default function (register: RegisterFn) {
+  register('function-max-lines', {
     description: 'Functions should be concise and focused',
     create(config) {
       const max = config.number('max', { default: 60, min: 1 })

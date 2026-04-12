@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RuleRegistry } from './registry.js'
 
 const mockJitiImport = vi.fn()
 
@@ -23,19 +22,15 @@ const { existsSync, readdirSync } = await import('node:fs')
 const mockExistsSync = vi.mocked(existsSync)
 const mockReaddirSync = vi.mocked(readdirSync)
 
-// Known paths produced by the mocked env-paths + process.cwd()
 const GLOBAL_DIR = '/mock/global/guardrail/rules'
 const LOCAL_DIR = `${process.cwd()}/.guardrail/rules`
 
-function makeRegistry(): RuleRegistry & { calls: string[] } {
+function makeRegister() {
   const calls: string[] = []
-  return {
-    calls,
-    register: (ruleId: string) => calls.push(ruleId),
-  } as unknown as RuleRegistry & { calls: string[] }
+  const register = (id: string) => calls.push(id)
+  return { register, calls }
 }
 
-/** existsSync returns true only for the given directory */
 function existsOnlyIn(dir: string) {
   mockExistsSync.mockImplementation((p) => p === dir)
 }
@@ -47,70 +42,70 @@ beforeEach(() => {
 describe('discoverRules', () => {
   it('does nothing when neither rules directory exists', async () => {
     mockExistsSync.mockReturnValue(false)
-    const registry = makeRegistry()
+    const { register, calls } = makeRegister()
 
-    await discoverRules(registry)
+    await discoverRules(register)
 
     expect(mockReaddirSync).not.toHaveBeenCalled()
-    expect(registry.calls).toHaveLength(0)
+    expect(calls).toHaveLength(0)
   })
 
   it('loads rules from local directory', async () => {
     existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['my-rule.js'] as any)
-    mockJitiImport.mockResolvedValue({ default: (r: RuleRegistry) => r.register('my-rule', {} as any) })
+    mockJitiImport.mockResolvedValue({ default: (register: Function) => register('my-rule', {} as any) })
 
-    const registry = makeRegistry()
-    await discoverRules(registry)
+    const { register, calls } = makeRegister()
+    await discoverRules(register)
 
-    expect(registry.calls).toEqual(['my-rule'])
+    expect(calls).toEqual(['my-rule'])
   })
 
   it('loads rules from global directory', async () => {
     existsOnlyIn(GLOBAL_DIR)
     mockReaddirSync.mockReturnValue(['global-rule.js'] as any)
-    mockJitiImport.mockResolvedValue({ default: (r: RuleRegistry) => r.register('global-rule', {} as any) })
+    mockJitiImport.mockResolvedValue({ default: (register: Function) => register('global-rule', {} as any) })
 
-    const registry = makeRegistry()
-    await discoverRules(registry)
+    const { register, calls } = makeRegister()
+    await discoverRules(register)
 
-    expect(registry.calls).toEqual(['global-rule'])
+    expect(calls).toEqual(['global-rule'])
   })
 
   it('loads rules from both global and local directories', async () => {
     mockExistsSync.mockReturnValue(true)
     mockReaddirSync.mockReturnValueOnce(['global-rule.js'] as any).mockReturnValueOnce(['local-rule.js'] as any)
     mockJitiImport
-      .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('global-rule', {} as any) })
-      .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('local-rule', {} as any) })
+      .mockResolvedValueOnce({ default: (register: Function) => register('global-rule', {} as any) })
+      .mockResolvedValueOnce({ default: (register: Function) => register('local-rule', {} as any) })
 
-    const registry = makeRegistry()
-    await discoverRules(registry)
+    const { register, calls } = makeRegister()
+    await discoverRules(register)
 
-    expect(registry.calls).toEqual(['global-rule', 'local-rule'])
+    expect(calls).toEqual(['global-rule', 'local-rule'])
   })
 
   it('calls register function exported directly (no default)', async () => {
     existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['my-rule.js'] as any)
-    const register = (r: RuleRegistry) => r.register('my-rule', {} as any)
-    mockJitiImport.mockResolvedValue(register)
+    const fn = (register: Function) => register('my-rule', {} as any)
+    mockJitiImport.mockResolvedValue(fn)
 
-    const registry = makeRegistry()
-    await discoverRules(registry)
+    const { register, calls } = makeRegister()
+    await discoverRules(register)
 
-    expect(registry.calls).toEqual(['my-rule'])
+    expect(calls).toEqual(['my-rule'])
   })
 
   it('filters out files with unsupported extensions', async () => {
     existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['rule.ts', 'rule.json', 'rule.md', 'rule.mjs'] as any)
-    mockJitiImport.mockResolvedValue({ default: (r: RuleRegistry) => r.register('x', {} as any) })
+    mockJitiImport.mockResolvedValue({ default: (register: Function) => register('x', {} as any) })
 
-    const registry = makeRegistry()
-    await discoverRules(registry)
+    const { register } = makeRegister()
+    await discoverRules(register)
 
-    expect(mockJitiImport).toHaveBeenCalledTimes(2) // .ts and .mjs pass; .json and .md are filtered out
+    expect(mockJitiImport).toHaveBeenCalledTimes(2)
   })
 
   it('loads files in sorted order', async () => {
@@ -118,13 +113,14 @@ describe('discoverRules', () => {
     mockReaddirSync.mockReturnValue(['z-rule.js', 'a-rule.js', 'm-rule.js'] as any)
     const loadOrder: string[] = []
     mockJitiImport.mockImplementation(async (path: string) => ({
-      default: (r: RuleRegistry) => {
-        loadOrder.push(path as string)
-        r.register(path as string, {} as any)
+      default: (register: Function) => {
+        loadOrder.push(path)
+        register(path, {} as any)
       },
     }))
 
-    await discoverRules(makeRegistry())
+    const { register } = makeRegister()
+    await discoverRules(register)
 
     expect(loadOrder.map((p) => p.split('/').pop())).toEqual(['a-rule.js', 'm-rule.js', 'z-rule.js'])
   })
@@ -134,40 +130,25 @@ describe('discoverRules', () => {
     mockReaddirSync.mockReturnValue(['bad-rule.js', 'good-rule.js'] as any)
     mockJitiImport
       .mockRejectedValueOnce(new Error('syntax error'))
-      .mockResolvedValueOnce({ default: (r: RuleRegistry) => r.register('good-rule', {} as any) })
+      .mockResolvedValueOnce({ default: (register: Function) => register('good-rule', {} as any) })
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    const registry = makeRegistry()
-    await discoverRules(registry)
+    const { register, calls } = makeRegister()
+    await discoverRules(register)
 
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('bad-rule.js'))
-    expect(registry.calls).toEqual(['good-rule'])
+    expect(calls).toEqual(['good-rule'])
   })
 
-  it('registers RuleDefinition objects using filename as rule id', async () => {
-    existsOnlyIn(LOCAL_DIR)
-    mockReaddirSync.mockReturnValue(['my-custom-rule.ts'] as any)
-    mockJitiImport.mockResolvedValue({
-      default: {
-        description: 'A custom rule',
-        create: () => ({}),
-      },
-    })
-
-    const registry = makeRegistry()
-    await discoverRules(registry)
-
-    expect(registry.calls).toEqual(['my-custom-rule'])
-  })
-
-  it('warns when export is neither a function nor a RuleDefinition', async () => {
+  it('warns when export is not a function', async () => {
     existsOnlyIn(LOCAL_DIR)
     mockReaddirSync.mockReturnValue(['bad-export.js'] as any)
     mockJitiImport.mockResolvedValue({ default: 'not a rule' })
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
-    await discoverRules(makeRegistry())
+    const { register } = makeRegister()
+    await discoverRules(register)
 
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('expected a RuleDefinition'))
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('expected a register function'))
   })
 })

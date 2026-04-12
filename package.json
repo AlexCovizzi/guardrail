@@ -4,14 +4,22 @@
   "license": "MIT",
   "type": "module",
   "main": "./dist/cli/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/api.d.ts",
+      "import": "./dist/api.js"
+    }
+  },
   "bin": {
     "guardrail": "./dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "CUSTOM_RULES.md",
+    "examples"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli/index.js",
     "dev": "tsc --watch",
     "check": "biome check . && tsc --noEmit",
     "lint": "biome lint .",

@@ -1,6 +1,21 @@
 # guardrail
 
-A static analysis tool designed to enforce hard limits on LLM-generated code. Run it as a post-generation hook or CI gate to catch the patterns LLMs consistently produce: oversized functions, excessive complexity, too many parameters, bloated classes.
+[![npm version](https://img.shields.io/npm/v/guardrail.svg)](https://www.npmjs.com/package/guardrail)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+A static analysis tool that catches the patterns LLMs consistently produce: oversized functions, excessive complexity, too many parameters, bloated classes. Run it as a post-generation hook or CI gate to keep AI-written code honest.
+
+## Install
+
+```bash
+npm install --save-dev guardrail
+```
+
+Or run directly:
+
+```bash
+npx guardrail check src/**/*.ts
+```
 
 ## Usage
 
@@ -8,7 +23,19 @@ A static analysis tool designed to enforce hard limits on LLM-generated code. Ru
 guardrail check src/**/*.ts
 ```
 
-Glob patterns are expanded by guardrail — no shell dependency. Use `--format json` for machine-readable output.
+Glob patterns are expanded by guardrail — no shell dependency.
+
+### CLI flags
+
+| Flag | Description |
+|---|---|
+| `--json` | Machine-readable JSON output |
+| `--quiet` | Only show files with violations |
+| `--claude-code` | Run as a Claude Code hook (exit 2 on violations, suppress passing-file output) |
+
+## Supported languages
+
+JavaScript, TypeScript, JSX, TSX, Python, Java, Kotlin
 
 ## Configuration
 
@@ -39,13 +66,13 @@ overrides:
 | Option | Type | Description |
 |---|---|---|
 | `max` | number | Upper threshold for the rule |
-| `severity` | `'error'` \| `'warning'` | Violation severity. Errors cause a non-zero exit code; warnings are reported but don't fail the run |
+| `severity` | `'error'` \| `'warning'` | Errors cause a non-zero exit code; warnings are reported but don't fail the run |
 | `enabled` | boolean | Enable or disable a rule |
 | `disabled` | boolean | Alias for `enabled: false` |
 
 ### Language overrides
 
-The top-level `overrides` key accepts a language name and a `rules` block that is merged over the base `rules`. Supported languages: `javascript`, `jsx`, `typescript`, `tsx`, `python`, `java`, `kotlin`.
+The `overrides` key accepts a language name and a `rules` block that is merged over the base rules. Supported language names: `javascript`, `jsx`, `typescript`, `tsx`, `python`, `java`, `kotlin`.
 
 ## Built-in rules
 
@@ -67,11 +94,9 @@ Cyclomatic complexity starts at 1 and increments for each branch point: `if`, `e
 | 1 | At least one error-level violation |
 | 2 | Claude Code hook mode: error-level violation detected |
 
-Warnings are always printed but do not cause a non-zero exit code.
-
 ## Claude Code integration
 
-Guardrail can run automatically after every file edit/write in Claude Code via hooks.
+Guardrail runs automatically after every file edit/write in Claude Code via hooks.
 
 1. Build and link the binary:
 
@@ -100,68 +125,30 @@ npm run build && npm link
 }
 ```
 
-When a violation is detected, Claude Code will see the error and be blocked from proceeding. Passing files produce no output.
+When a violation is detected, Claude Code sees the error and is blocked from proceeding.
 
 ## Custom rules
 
-Place `.ts` or `.js` files in `.guardrail/rules/` at the project root. Each file should export a default function that receives a `Registry`:
+Guardrail supports custom rules in TypeScript or JavaScript. See [CUSTOM_RULES.md](CUSTOM_RULES.md) for the full guide.
 
-```ts
-import type { Registry, RuleConfig, SyntaxNode, FileContext, ReportFn } from 'guardrail'
+Scaffold a new rule:
 
-export default function (registry: Registry) {
-  registry.register('my-rule', {
-    description: 'Description of the rule',
-    defaultSeverity: 'warning',
-    create(config: RuleConfig) {
-      const max = config.number('max', { default: 5 })
-      return {
-        function(node: SyntaxNode, ctx: FileContext, report: ReportFn) {
-          // inspect node, call report() to flag a violation
-        },
-      }
-    },
-  })
-}
+```bash
+# Local rule (project-specific)
+guardrail rule add no-console
+
+# Global rule (applies to all projects)
+guardrail rule add no-console --scope global
 ```
 
-### Selectors
+List all available rules (builtin + custom):
 
-Visitor keys are semantic selectors that resolve to language-specific AST node types:
-
-| Selector | Matches |
-|---|---|
-| `function` | Function declarations, expressions, arrow functions, methods |
-| `class` | Class declarations |
-| `import` | Import statements |
-| `branch` | If, for, while, switch, catch, ternary |
-| `parameters` | Parameter lists |
-
-Append `Exit` (e.g., `functionExit`) to visit on node exit instead of entry. Prefix with `_` (e.g., `_my_node_type`) to match raw tree-sitter node types in snake_case.
-
-## Project structure
-
+```bash
+guardrail rule list
 ```
-src/
-├── cli/
-│   └── index.ts                    # Entry point — parses arguments, expands globs, runs the engine
-├── config/
-│   ├── config.ts                   # Loads config via cosmiconfig; merges global, local, and language overrides
-│   └── rule-config.ts              # Per-rule config accessor with typed option parsing
-├── core/
-│   ├── engine.ts                   # Walks the AST, dispatches to rule visitors, collects violations
-│   ├── languages.ts                # Language definitions mapping semantic types to tree-sitter node types
-│   └── parser.ts                   # Initialises web-tree-sitter, detects language from filename
-└── rules/
-    ├── registry.ts                 # Rule registry — deduplicates rule IDs
-    ├── loader.ts                   # Loads builtin + discovered rules, applies config
-    ├── discovery.ts                # Discovers custom rules from .guardrail/rules/ and global config dir
-    ├── rule.ts                     # Shared types: Rule, RuleDefinition, SyntaxNode, FileContext
-    └── builtin/
-        ├── index.ts                # Registers all builtin rules
-        ├── function-length.ts      # function-max-lines
-        ├── function-complexity.ts  # function-max-complexity
-        ├── function-parameter-count.ts  # function-max-params
-        ├── class-length.ts         # class-max-lines
-        └── class-max-methods.ts    # class-max-methods
-```
+
+This creates a `.ts` file in `.guardrail/rules/` (local) or `~/.config/guardrail/rules/` (global) with the boilerplate filled in.
+
+## License
+
+MIT

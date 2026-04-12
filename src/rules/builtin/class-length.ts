@@ -1,7 +1,7 @@
-import type { Registry, FileContext, ReportFn, SyntaxNode } from '../rule.js'
+import type { RegisterFn, FileContext, ReportFn, SyntaxNode } from '../rule.js'
 
-export default function (registry: Registry) {
-  registry.register('class-max-lines', {
+export default function (register: RegisterFn) {
+  register('class-max-lines', {
     description: 'Classes should be focused and not too large',
     create(config) {
       const max = config.number('max', { default: 500, min: 1 })

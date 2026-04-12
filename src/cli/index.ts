@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 
-import { existsSync, lstatSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { globSync } from 'tinyglobby'
+import { join } from 'node:path'
 import { Command } from 'commander'
+import envPaths from 'env-paths'
+import { registerBuiltins } from '../rules/builtin/index.js'
+import { discoverRules } from '../rules/discovery.js'
+import { RuleRegistry } from '../rules/registry.js'
 import { Engine } from '../core/engine.js'
 import { ParseError } from '../core/parser.js'
 import { ConfigLoadError } from '../config/config.js'
@@ -13,14 +18,84 @@ const program = new Command()
 
 program.name('guardrail').description('Enforce bounds on AI-generated code').version('0.1.0')
 
+const ruleCommand = program.command('rule').description('Rule management commands')
+
+ruleCommand.addCommand(
+  new Command('add')
+    .argument('<name>', 'Rule name (kebab-case)')
+    .description('Scaffold a new custom rule')
+    .option('--scope <scope>', 'Where to add the rule: local or global', 'local')
+    .action((name: string, options: { scope: string }) => {
+      if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name)) {
+        process.stderr.write(`guardrail: rule name must be kebab-case (e.g. my-rule, no-console)\n`)
+        process.exit(1)
+      }
+
+      const scope = options.scope === 'global' ? 'global' : 'local'
+      const rulesDir =
+        scope === 'global'
+          ? join(envPaths('guardrail', { suffix: '' }).config, 'rules')
+          : join(process.cwd(), '.guardrail', 'rules')
+
+      const filePath = join(rulesDir, `${name}.ts`)
+      if (existsSync(filePath)) {
+        process.stderr.write(`guardrail: rule already exists: ${filePath}\n`)
+        process.exit(1)
+      }
+
+      mkdirSync(rulesDir, { recursive: true })
+
+      const template = `import type { RegisterFn } from 'guardrail'
+
+export default function(register: RegisterFn) {
+  register('${name}', {
+    description: '',
+    defaultSeverity: 'error',
+    create(config) {
+      return {
+        function(node, ctx, report) {
+          // your logic here
+        },
+      }
+    },
+  })
+}
+`
+      writeFileSync(filePath, template)
+      console.log(`Created ${filePath}`)
+    }),
+)
+
+ruleCommand.addCommand(
+  new Command('list')
+    .description('List all available rules')
+    .action(async () => {
+      const registry = new RuleRegistry()
+      const register = registry.register.bind(registry)
+      registerBuiltins(register)
+      await discoverRules(register)
+
+      const entries = registry.getEntries()
+      const builtinIds = new Set<string>()
+
+      registerBuiltins((id: string) => builtinIds.add(id))
+
+      for (const { ruleId, definition } of entries) {
+        const source = builtinIds.has(ruleId) ? 'builtin' : 'custom'
+        const severity = definition.defaultSeverity ?? 'error'
+        console.log(`${ruleId}  (${source}, ${severity})  ${definition.description}`)
+      }
+    }),
+)
+
 program
   .command('check')
   .argument('[files...]', 'Files to check')
   .description('Check files against rules')
-  .option('--format <format>', 'Output format: text or json', 'text')
+  .option('--json', 'Output results as JSON')
   .option('--quiet', 'Only show files with violations')
   .option('--claude-code', 'Claude Code hook mode: reads stdin JSON, outputs violations to stderr, exits 2 on failure')
-  .action(async (files: string[], options: { format: string; quiet: boolean; claudeCode: boolean }) => {
+  .action(async (files: string[], options: { json: boolean; quiet: boolean; claudeCode: boolean }) => {
     let engine: Engine
     try {
       engine = await Engine.create()
@@ -91,7 +166,7 @@ program
 
     const hasErrors = results.some((r) => !r.passed)
 
-    if (options.format === 'json') {
+    if (options.json) {
       console.log(JSON.stringify(results, null, 2))
       process.exit(hasErrors ? 1 : 0)
     }
