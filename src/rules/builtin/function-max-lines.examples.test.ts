@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { RuleConfig } from '../../config/rule-config.js'
 import { matchesAnyNode } from '../../test/helpers.js'
 import { RuleRegistry } from '../registry.js'
-import registerFunctionLength from './function-length.js'
+import registerFunctionLength from './function-max-lines.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()

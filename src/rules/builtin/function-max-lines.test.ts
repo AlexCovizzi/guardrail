@@ -4,7 +4,7 @@ import type { SemanticTypeName } from '../../core/languages.js'
 import { makeContext, makeNode } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
 import type { Handler } from '../rule.js'
-import registerFunctionLength from './function-length.js'
+import registerFunctionLength from './function-max-lines.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()

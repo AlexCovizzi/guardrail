@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { RuleConfig } from '../../config/rule-config.js'
 import { matchesAnyNode } from '../../test/helpers.js'
 import { RuleRegistry } from '../registry.js'
-import registerFunctionComplexity from './function-complexity.js'
+import registerFunctionMaxComplexity from './function-max-complexity.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
-  registerFunctionComplexity(registry.register.bind(registry))
+  registerFunctionMaxComplexity(registry.register.bind(registry))
   const [{ ruleId, definition }] = registry.getEntries()
   const builder = new RuleConfig(ruleId, config)
   return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }

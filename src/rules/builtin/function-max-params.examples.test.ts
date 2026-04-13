@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { RuleConfig } from '../../config/rule-config.js'
 import { matchesAnyNode } from '../../test/helpers.js'
 import { RuleRegistry } from '../registry.js'
-import registerFunctionParameterCount from './function-parameter-count.js'
+import registerFunctionMaxParams from './function-max-params.js'
 
 function getRule(config: Record<string, any> = {}) {
   const registry = new RuleRegistry()
-  registerFunctionParameterCount(registry.register.bind(registry))
+  registerFunctionMaxParams(registry.register.bind(registry))
   const [{ ruleId, definition }] = registry.getEntries()
   const builder = new RuleConfig(ruleId, config)
   return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }

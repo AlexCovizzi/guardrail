@@ -1,14 +1,16 @@
 import type { RegisterFn } from '../rule.js'
-import registerClassLength from './class-length.js'
+import registerClassMaxLines from './class-max-lines.js'
 import registerClassMaxMethods from './class-max-methods.js'
-import registerFunctionComplexity from './function-complexity.js'
-import registerFunctionLength from './function-length.js'
-import registerFunctionParameterCount from './function-parameter-count.js'
+import registerFunctionMaxComplexity from './function-max-complexity.js'
+import registerFunctionMaxLines from './function-max-lines.js'
+import registerFunctionMaxNesting from './function-max-nesting.js'
+import registerFunctionMaxParams from './function-max-params.js'
 
 export function registerBuiltins(register: RegisterFn): void {
-  registerClassLength(register)
+  registerClassMaxLines(register)
   registerClassMaxMethods(register)
-  registerFunctionLength(register)
-  registerFunctionComplexity(register)
-  registerFunctionParameterCount(register)
+  registerFunctionMaxLines(register)
+  registerFunctionMaxComplexity(register)
+  registerFunctionMaxNesting(register)
+  registerFunctionMaxParams(register)
 }
