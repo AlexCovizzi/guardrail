@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import envPaths from 'env-paths'
 import { createJiti } from 'jiti'
+import { GLOBAL_RULES_DIR } from '../config/paths.js'
 import type { RegisterFn } from './rule.js'
 
 const jiti = createJiti(import.meta.url)
@@ -31,7 +31,7 @@ async function discoverRulesInDir(register: RegisterFn, dir: string): Promise<vo
 }
 
 export async function discoverRules(register: RegisterFn): Promise<void> {
-  const globalDir = join(envPaths('guardrail', { suffix: '' }).config, 'rules')
+  const globalDir = GLOBAL_RULES_DIR
   const localDir = join(process.cwd(), '.guardrail', 'rules')
   await discoverRulesInDir(register, globalDir)
   await discoverRulesInDir(register, localDir)

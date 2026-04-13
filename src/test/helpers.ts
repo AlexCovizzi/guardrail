@@ -1,7 +1,7 @@
 import { resolveSelector } from '../core/engine.js'
 import { LANGUAGES, type LanguageDefinition } from '../core/languages.js'
 import { parse } from '../core/parser.js'
-import { FileContext, Handler, Rule, SyntaxNode } from '../rules/rule.js'
+import type { FileContext, Handler, Rule, SyntaxNode } from '../rules/rule.js'
 
 export async function matchesAnyNode(
   rule: Omit<Rule, 'id'>,

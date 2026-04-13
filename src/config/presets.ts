@@ -1,0 +1,36 @@
+import type { ConfigData } from './config-data.js'
+
+export const RECOMMENDED_PRESET: ConfigData = {
+  rules: {
+    'function-max-lines': { max: 60 },
+    'function-max-complexity': { max: 10 },
+    'function-max-params': { max: 4 },
+    'class-max-lines': { max: 500 },
+    'class-max-methods': { max: 20 },
+  },
+  ignore: [
+    '.git',
+    'vendor',
+    'node_modules',
+    'dist',
+    '.next',
+    '.nuxt',
+    'coverage',
+    '*.min.js',
+    '*.min.jsx',
+    '*.min.ts',
+    '*.min.tsx',
+    '__pycache__',
+    '.venv',
+    'venv',
+    'env',
+    '.tox',
+    '.mypy_cache',
+    '*.pyc',
+    'build',
+    'out',
+    'target',
+    '.gradle',
+    '.idea',
+  ],
+}

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { makeNode } from '../test/fixtures.js'
 import type { Rule } from '../rules/rule.js'
+import { makeNode } from '../test/fixtures.js'
 import type { LanguageDefinition } from './languages.js'
 
 const typescriptLang: LanguageDefinition = {

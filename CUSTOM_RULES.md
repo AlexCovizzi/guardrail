@@ -1,6 +1,6 @@
 # Writing Custom Rules
 
-Guardrail lets you write your own rules in TypeScript or JavaScript. Place them in `.guardrail/rules/` (project-local) or `~/.config/guardrail/rules/` (global).
+Guardrail lets you write your own rules in TypeScript or JavaScript. Place them in `.guardrail/rules/` (project-local) or `~/.guardrail/rules/` (global).
 
 ## File Format
 

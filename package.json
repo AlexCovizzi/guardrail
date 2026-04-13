@@ -1,6 +1,6 @@
 {
   "name": "@alexcvzz/guardrail",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cli/index.js",
@@ -34,7 +34,6 @@
     "commander": "14.0.3",
     "cosmiconfig": "9.0.1",
     "cosmiconfig-typescript-loader": "6.3.0",
-    "env-paths": "4.0.0",
     "jiti": "2.6.1",
     "tinyglobby": "0.2.16",
     "tree-sitter-java": "0.23.5",

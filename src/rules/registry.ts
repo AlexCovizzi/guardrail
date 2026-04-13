@@ -1,4 +1,4 @@
-import { RuleDefinition } from './rule.js'
+import type { RuleDefinition } from './rule.js'
 
 type RuleEntry = {
   ruleId: string

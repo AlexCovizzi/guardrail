@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LanguageConfig } from '../config/config.js'
+import { LanguageConfig } from '../config/language-config.js'
 import { instantiateRules } from './loader.js'
-import { RuleDefinition } from './rule.js'
 import { RuleRegistry } from './registry.js'
+import type { RuleDefinition } from './rule.js'
 
 const aRule = (overrides: Partial<RuleDefinition> = {}): RuleDefinition => ({
   description: 'A test rule',

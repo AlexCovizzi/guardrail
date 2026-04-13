@@ -1,8 +1,8 @@
-import type { LanguageConfig } from '../config/config.js'
+import type { LanguageConfig } from '../config/language-config.js'
 import { registerBuiltins } from './builtin/index.js'
 import { discoverRules } from './discovery.js'
 import { RuleRegistry } from './registry.js'
-import { Rule } from './rule.js'
+import type { Rule } from './rule.js'
 
 export async function discoverAllRules(): Promise<RuleRegistry> {
   const registry = new RuleRegistry()

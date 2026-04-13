@@ -12,8 +12,8 @@ vi.mock('fs', async (importOriginal) => ({
   readdirSync: vi.fn(),
 }))
 
-vi.mock('env-paths', () => ({
-  default: () => ({ config: '/mock/global/guardrail' }),
+vi.mock('node:os', () => ({
+  homedir: () => '/mock/home',
 }))
 
 const { discoverRules } = await import('./discovery.js')
@@ -22,7 +22,7 @@ const { existsSync, readdirSync } = await import('node:fs')
 const mockExistsSync = vi.mocked(existsSync)
 const mockReaddirSync = vi.mocked(readdirSync)
 
-const GLOBAL_DIR = '/mock/global/guardrail/rules'
+const GLOBAL_DIR = '/mock/home/.guardrail/rules'
 const LOCAL_DIR = `${process.cwd()}/.guardrail/rules`
 
 function makeRegister() {

@@ -1,8 +1,8 @@
 import { Config } from '../config/config.js'
 import { discoverAllRules, instantiateRules } from '../rules/loader.js'
+import type { FileContext, Handler, Location, ReportFn, Rule } from '../rules/rule.js'
 import { detectLanguage, LANGUAGES, type LanguageDefinition, type SemanticTypeName } from './languages.js'
-import { parse, ParseError } from './parser.js'
-import { Handler, Rule, FileContext, ReportFn, Location } from '../rules/rule.js'
+import { ParseError, parse } from './parser.js'
 
 export interface Violation {
   ruleId: string

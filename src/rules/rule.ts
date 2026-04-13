@@ -1,4 +1,4 @@
-import { RuleConfig } from '../config/rule-config.js'
+import type { RuleConfig } from '../config/rule-config.js'
 import type { LanguageDefinition, SemanticTypeName } from '../core/languages.js'
 
 export interface SyntaxNode {

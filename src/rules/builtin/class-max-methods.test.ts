@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { RuleConfig } from '../../config/rule-config.js'
 import type { SemanticTypeName } from '../../core/languages.js'
-import type { Handler } from '../rule.js'
 import { makeContext, makeNode } from '../../test/fixtures.js'
 import { RuleRegistry } from '../registry.js'
+import type { Handler } from '../rule.js'
 import registerClassMaxMethods from './class-max-methods.js'
 
 function getRule(config: Record<string, any> = {}) {

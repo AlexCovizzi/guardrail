@@ -2,8 +2,12 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { cosmiconfigSync } from 'cosmiconfig'
 import { TypeScriptLoader } from 'cosmiconfig-typescript-loader'
-import envPaths from 'env-paths'
-import { RuleConfig } from './rule-config.js'
+import type { ConfigData } from './config-data.js'
+import { LanguageConfig } from './language-config.js'
+import { GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_PATH } from './paths.js'
+import { RECOMMENDED_PRESET } from './presets.js'
+
+export { type ConfigData, LanguageConfig }
 
 const explorer = cosmiconfigSync('guardrail', {
   searchPlaces: ['.guardrail.yaml', '.guardrail.yml', '.guardrail.json', '.guardrail.js', '.guardrail.ts'],
@@ -12,49 +16,14 @@ const explorer = cosmiconfigSync('guardrail', {
   },
 })
 
-interface RawConfig {
-  rules?: Record<string, Record<string, unknown>>
-  overrides?: Record<string, { rules?: Record<string, Record<string, unknown>> }>
-  ignore?: string[]
+const PRESETS: Record<string, ConfigData> = {
+  recommended: RECOMMENDED_PRESET,
 }
-
-const GLOBAL_CONFIG_DIR = envPaths('guardrail', { suffix: '' }).config
-const GLOBAL_CONFIG_PATH = join(GLOBAL_CONFIG_DIR, 'config.yaml')
 
 const DEFAULT_CONFIG = `# Guardrail global configuration
 # https://github.com/alexcovizzi/guardrail
 
-ignore:
-  # General
-  - .git
-  - vendor
-
-  # JavaScript / TypeScript
-  - node_modules
-  - dist
-  - .next
-  - .nuxt
-  - coverage
-  - "*.min.js"
-  - "*.min.jsx"
-  - "*.min.ts"
-  - "*.min.tsx"
-
-  # Python
-  - __pycache__
-  - .venv
-  - venv
-  - env
-  - .tox
-  - .mypy_cache
-  - "*.pyc"
-
-  # Java / Kotlin
-  - build
-  - out
-  - target
-  - .gradle
-  - .idea
+extends: recommended
 `
 
 function ensureGlobalConfig(): void {
@@ -63,29 +32,54 @@ function ensureGlobalConfig(): void {
   writeFileSync(GLOBAL_CONFIG_PATH, DEFAULT_CONFIG)
 }
 
-function loadGlobalConfig(): RawConfig {
+function resolveExtends(raw: ConfigData): ConfigData {
+  const presets = normalizeExtends(raw.extends)
+  if (presets.length === 0) return raw
+  let base: ConfigData = {}
+  for (const name of presets) {
+    const preset = PRESETS[name]
+    if (!preset) throw new ConfigLoadError(`Unknown preset "${name}". Available: ${Object.keys(PRESETS).join(', ')}`)
+    base = mergeConfigs(base, preset)
+  }
+  const { extends: _, ...rest } = raw
+  return mergeConfigs(base, rest)
+}
+
+function normalizeExtends(extends_val: ConfigData['extends']): string[] {
+  if (!extends_val) return []
+  return Array.isArray(extends_val) ? extends_val : [extends_val]
+}
+
+function loadGlobalConfig(): ConfigData {
   if (!existsSync(GLOBAL_CONFIG_PATH)) return {}
-  return (explorer.load(GLOBAL_CONFIG_PATH)?.config as RawConfig) ?? {}
+  return (explorer.load(GLOBAL_CONFIG_PATH)?.config as ConfigData) ?? {}
 }
 
-function loadLocalConfig(cwd: string): RawConfig {
-  return (explorer.search(cwd)?.config as RawConfig) ?? {}
+function loadLocalConfig(cwd: string): ConfigData {
+  return (explorer.search(cwd)?.config as ConfigData) ?? {}
 }
 
-function mergeConfigs(base: RawConfig, override: RawConfig): RawConfig {
-  const merged: RawConfig = { ...base, ...override }
+function mergeIgnoreLists(base: string[], override: string[]): string[] {
+  const negations = new Set(override.filter((p) => p.startsWith('!')).map((p) => p.slice(1)))
+  const filteredBase = base.filter((p) => !negations.has(p))
+  const additions = override.filter((p) => !p.startsWith('!'))
+  return [...new Set([...filteredBase, ...additions])]
+}
+
+function mergeConfigs(base: ConfigData, override: ConfigData): ConfigData {
+  const merged: ConfigData = { ...base, ...override }
   if (base.rules || override.rules) {
     merged.rules = { ...base.rules, ...override.rules }
   }
   const overrides = mergeOverrides(base.overrides, override.overrides)
   if (overrides) merged.overrides = overrides
   if (base.ignore || override.ignore) {
-    merged.ignore = [...(base.ignore ?? []), ...(override.ignore ?? [])]
+    merged.ignore = mergeIgnoreLists(base.ignore ?? [], override.ignore ?? [])
   }
   return merged
 }
 
-function mergeOverrides(base: RawConfig['overrides'], override: RawConfig['overrides']): RawConfig['overrides'] {
+function mergeOverrides(base: ConfigData['overrides'], override: ConfigData['overrides']): ConfigData['overrides'] {
   if (!base && !override) return undefined
   const keys = new Set([...Object.keys(base ?? {}), ...Object.keys(override ?? {})])
   return Object.fromEntries(
@@ -93,7 +87,7 @@ function mergeOverrides(base: RawConfig['overrides'], override: RawConfig['overr
   )
 }
 
-function validateStructure(raw: RawConfig): void {
+function validateStructure(raw: ConfigData): void {
   if (raw.rules !== undefined) {
     if (typeof raw.rules !== 'object' || raw.rules === null || Array.isArray(raw.rules)) {
       throw new ConfigLoadError('"rules" must be an object')
@@ -128,6 +122,11 @@ function validateStructure(raw: RawConfig): void {
       }
     }
   }
+  if (raw.extends !== undefined) {
+    const val = raw.extends
+    const isValid = typeof val === 'string' || (Array.isArray(val) && val.every((v) => typeof v === 'string'))
+    if (!isValid) throw new ConfigLoadError('"extends" must be a string or array of strings')
+  }
   if (raw.ignore !== undefined) {
     if (!Array.isArray(raw.ignore) || !raw.ignore.every((v) => typeof v === 'string')) {
       throw new ConfigLoadError('"ignore" must be an array of glob strings')
@@ -143,21 +142,21 @@ export class ConfigLoadError extends Error {
 }
 
 export class Config {
-  private constructor(private data: RawConfig) {}
+  private constructor(private data: ConfigData) {}
 
   static load(cwd: string = process.cwd()): Config {
     ensureGlobalConfig()
-    const globalConfig = loadGlobalConfig()
-    const localConfig = loadLocalConfig(cwd)
+    const globalConfig = resolveExtends(loadGlobalConfig())
+    const localConfig = resolveExtends(loadLocalConfig(cwd))
     validateStructure(globalConfig)
     validateStructure(localConfig)
     return new Config(mergeConfigs(globalConfig, localConfig))
   }
 
-  static loadRaw(cwd: string = process.cwd()): { global: RawConfig; local: RawConfig; merged: RawConfig } {
+  static loadData(cwd: string = process.cwd()): { global: ConfigData; local: ConfigData; merged: ConfigData } {
     ensureGlobalConfig()
-    const globalConfig = loadGlobalConfig()
-    const localConfig = loadLocalConfig(cwd)
+    const globalConfig = resolveExtends(loadGlobalConfig())
+    const localConfig = resolveExtends(loadLocalConfig(cwd))
     validateStructure(globalConfig)
     validateStructure(localConfig)
     return { global: globalConfig, local: localConfig, merged: mergeConfigs(globalConfig, localConfig) }
@@ -187,25 +186,5 @@ export class Config {
 
   getIgnorePatterns(): string[] {
     return this.data.ignore ?? []
-  }
-}
-
-export class LanguageConfig {
-  constructor(
-    private base: RawConfig,
-    private language: string
-  ) {}
-
-  forRule(ruleId: string): RuleConfig {
-    const baseRule = this.base.rules?.[ruleId] ?? {}
-    const overrideRule = this.base.overrides?.[this.language]?.rules?.[ruleId]
-    const merged = overrideRule ? { ...baseRule, ...overrideRule } : baseRule
-    return new RuleConfig(ruleId, merged)
-  }
-
-  getRaw(): Record<string, Record<string, unknown>> {
-    const base = this.base.rules ?? {}
-    const override = this.base.overrides?.[this.language]?.rules ?? {}
-    return { ...base, ...override }
   }
 }

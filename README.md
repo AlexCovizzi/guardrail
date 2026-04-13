@@ -42,6 +42,8 @@ JavaScript, TypeScript, JSX, TSX, Python, Java, Kotlin
 Create a `.guardrail.yaml` (or `.guardrail.yml`, `.guardrail.json`, `.guardrail.js`, `.guardrail.ts`) at the project root via [cosmiconfig](https://github.com/cosmiconfig/cosmiconfig):
 
 ```yaml
+extends: recommended
+
 rules:
   function-max-lines:
     max: 40
@@ -59,6 +61,31 @@ overrides:
     rules:
       function-max-complexity:
         disabled: true
+```
+
+### Extends
+
+The `extends` field inherits rules and ignore patterns from a named preset:
+
+```yaml
+extends: recommended
+```
+
+Available presets:
+
+| Preset | Description |
+|---|---|
+| `recommended` | Enables all built-in rules with default thresholds and a broad set of ignore patterns for common directories |
+
+On first run, guardrail creates a global config at `~/.guardrail/config.yaml` with `extends: recommended`. You can override any preset value in your local `.guardrail.yaml` — local rules replace preset rules by key, and local ignore patterns are appended.
+
+To remove a pattern inherited from a preset, prefix it with `!`:
+
+```yaml
+extends: recommended
+ignore:
+  - !build        # un-ignore build/ from recommended
+  - generated     # add a new pattern
 ```
 
 ### Rule options
@@ -147,7 +174,7 @@ List all available rules (builtin + custom):
 guardrail rule list
 ```
 
-This creates a `.ts` file in `.guardrail/rules/` (local) or `~/.config/guardrail/rules/` (global) with the boilerplate filled in.
+This creates a `.ts` file in `.guardrail/rules/` (local) or `~/.guardrail/rules/` (global) with the boilerplate filled in.
 
 ## License
 

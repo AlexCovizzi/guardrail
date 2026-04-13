@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { globSync } from 'tinyglobby'
 import { join } from 'node:path'
 import { Command } from 'commander'
-import envPaths from 'env-paths'
+import { globSync } from 'tinyglobby'
+import { Config, ConfigLoadError } from '../config/config.js'
+import { GLOBAL_RULES_DIR } from '../config/paths.js'
+import { Engine } from '../core/engine.js'
+import { ParseError } from '../core/parser.js'
 import { registerBuiltins } from '../rules/builtin/index.js'
 import { discoverRules } from '../rules/discovery.js'
 import { RuleRegistry } from '../rules/registry.js'
-import { Engine } from '../core/engine.js'
-import { ParseError } from '../core/parser.js'
-import { Config, ConfigLoadError } from '../config/config.js'
 
 const SUPPORTED_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'kt', 'kts']
 
@@ -32,10 +32,7 @@ ruleCommand.addCommand(
       }
 
       const scope = options.scope === 'global' ? 'global' : 'local'
-      const rulesDir =
-        scope === 'global'
-          ? join(envPaths('guardrail', { suffix: '' }).config, 'rules')
-          : join(process.cwd(), '.guardrail', 'rules')
+      const rulesDir = scope === 'global' ? GLOBAL_RULES_DIR : join(process.cwd(), '.guardrail', 'rules')
 
       const filePath = join(rulesDir, `${name}.ts`)
       if (existsSync(filePath)) {
@@ -63,29 +60,27 @@ export default function(register: RegisterFn) {
 `
       writeFileSync(filePath, template)
       console.log(`Created ${filePath}`)
-    }),
+    })
 )
 
 ruleCommand.addCommand(
-  new Command('list')
-    .description('List all available rules')
-    .action(async () => {
-      const registry = new RuleRegistry()
-      const register = registry.register.bind(registry)
-      registerBuiltins(register)
-      await discoverRules(register)
+  new Command('list').description('List all available rules').action(async () => {
+    const registry = new RuleRegistry()
+    const register = registry.register.bind(registry)
+    registerBuiltins(register)
+    await discoverRules(register)
 
-      const entries = registry.getEntries()
-      const builtinIds = new Set<string>()
+    const entries = registry.getEntries()
+    const builtinIds = new Set<string>()
 
-      registerBuiltins((id: string) => builtinIds.add(id))
+    registerBuiltins((id: string) => builtinIds.add(id))
 
-      for (const { ruleId, definition } of entries) {
-        const source = builtinIds.has(ruleId) ? 'builtin' : 'custom'
-        const severity = definition.defaultSeverity ?? 'error'
-        console.log(`${ruleId}  (${source}, ${severity})  ${definition.description}`)
-      }
-    }),
+    for (const { ruleId, definition } of entries) {
+      const source = builtinIds.has(ruleId) ? 'builtin' : 'custom'
+      const severity = definition.defaultSeverity ?? 'error'
+      console.log(`${ruleId}  (${source}, ${severity})  ${definition.description}`)
+    }
+  })
 )
 
 program
@@ -190,9 +185,9 @@ program
   .command('config')
   .description('Print configuration (global, local, merged)')
   .action(async () => {
-    let raw: Awaited<ReturnType<typeof Config.loadRaw>>
+    let raw: Awaited<ReturnType<typeof Config.loadData>>
     try {
-      raw = Config.loadRaw()
+      raw = Config.loadData()
     } catch (err) {
       if (err instanceof ConfigLoadError) {
         process.stderr.write(`guardrail: ${err.message}\n`)
