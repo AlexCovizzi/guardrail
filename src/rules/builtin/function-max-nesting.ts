@@ -25,7 +25,6 @@ export default function (register: RegisterFn) {
           if (depth <= max) return
           report({
             message: `Function has nesting depth of ${depth} (max: ${max})`,
-            hint: 'Extract deeply nested logic into separate functions',
           })
         },
       }

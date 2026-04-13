@@ -25,7 +25,6 @@ export default function (register: RegisterFn) {
           if (count <= max) return
           report({
             message: `Function has ${count} parameters (max: ${max})`,
-            hint: 'Group related parameters into an options object',
           })
         },
       }

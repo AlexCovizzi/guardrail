@@ -12,7 +12,6 @@ export default function (register: RegisterFn) {
           if (lines <= max) return
           report({
             message: `Function is ${lines} lines (max: ${max})`,
-            hint: 'Split this function into smaller, focused functions',
           })
         },
       }

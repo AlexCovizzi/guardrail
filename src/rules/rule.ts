@@ -29,7 +29,7 @@ export interface Location {
   end: Position
 }
 
-export type ReportFn = (violation: { message: string; hint?: string }) => void
+export type ReportFn = (violation: { message: string }) => void
 
 export interface FileContext {
   source: string

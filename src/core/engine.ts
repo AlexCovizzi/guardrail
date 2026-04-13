@@ -10,7 +10,6 @@ export interface Violation {
   description: string
   location: Location
   severity: 'error' | 'warning'
-  hint?: string
 }
 
 export interface Result {
@@ -114,7 +113,7 @@ export class Engine {
 
       if (entries) {
         for (const { rule, fn } of entries) {
-          const report: ReportFn = ({ message, hint }) => {
+          const report: ReportFn = ({ message }) => {
             violations.push({
               ruleId: rule.id,
               message,
@@ -124,7 +123,6 @@ export class Engine {
                 end: { line: node.endPosition.row + 1, column: node.endPosition.column },
               },
               severity: rule.severity,
-              hint,
             })
           }
           fn(node, { ...context }, report)

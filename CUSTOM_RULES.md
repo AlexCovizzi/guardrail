@@ -99,7 +99,7 @@ ctx.tree     // tree-sitter Tree object
 **`report`** — Call this to create a violation:
 
 ```ts
-report({ message: 'Description of the problem', hint: 'Optional suggestion' })
+report({ message: 'Description of the problem' })
 ```
 
 ## Config

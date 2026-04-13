@@ -212,20 +212,6 @@ describe('Engine.check', () => {
     expect(visited).toHaveLength(0)
   })
 
-  it('includes hint in violation when rule provides one', async () => {
-    const engine = await makeEngineWithRules([
-      makeRule({
-        visitors: {
-          _testNode: (_n, _ctx, report) => report({ message: 'Test violation', hint: 'Split this function' }),
-        },
-      }),
-    ])
-
-    const result = await engine.check('file.ts', 'const x = 1')
-
-    expect(result.violations[0].hint).toBe('Split this function')
-  })
-
   it('passes correct context to visitor', async () => {
     let capturedCtx: any
     mockDetectLanguage.mockReturnValue(typescriptLang)

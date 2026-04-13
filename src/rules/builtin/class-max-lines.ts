@@ -12,7 +12,6 @@ export default function (register: RegisterFn) {
           if (lines <= max) return
           report({
             message: `Class is ${lines} lines (max: ${max})`,
-            hint: 'Extract responsibilities into separate classes',
           })
         },
       }

@@ -26,7 +26,6 @@ export default function (register: RegisterFn) {
           if (complexity <= max) return
           report({
             message: `Function has cyclomatic complexity of ${complexity} (max: ${max})`,
-            hint: 'Reduce nesting by extracting branches into separate functions',
           })
         },
       }

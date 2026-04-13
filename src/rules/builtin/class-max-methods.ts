@@ -44,7 +44,6 @@ export default function (register: RegisterFn) {
           if (count <= max) return
           report({
             message: `Class has ${count} methods (max: ${max})`,
-            hint: 'Extract responsibilities into separate classes',
           })
         },
       }
