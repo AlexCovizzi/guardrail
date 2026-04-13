@@ -1,11 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { cosmiconfigSync } from 'cosmiconfig'
 import { TypeScriptLoader } from 'cosmiconfig-typescript-loader'
 import type { ConfigData } from './config-data.js'
 import { LanguageConfig } from './language-config.js'
 import { GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_PATH } from './paths.js'
-import { RECOMMENDED_PRESET } from './presets.js'
+import recommendedPreset from './recommended-preset.js'
 
 export { type ConfigData, LanguageConfig }
 
@@ -17,7 +16,7 @@ const explorer = cosmiconfigSync('guardrail', {
 })
 
 const PRESETS: Record<string, ConfigData> = {
-  recommended: RECOMMENDED_PRESET,
+  recommended: recommendedPreset,
 }
 
 const DEFAULT_CONFIG = `# Guardrail global configuration
@@ -134,7 +133,8 @@ function validateOverrideRules(lang: string, rules: unknown): void {
 
 function validateExtends(extends_val: unknown): void {
   if (extends_val === undefined) return
-  const isValid = typeof extends_val === 'string' || (Array.isArray(extends_val) && extends_val.every((v) => typeof v === 'string'))
+  const isValid =
+    typeof extends_val === 'string' || (Array.isArray(extends_val) && extends_val.every((v) => typeof v === 'string'))
   if (!isValid) throw new ConfigLoadError('"extends" must be a string or array of strings')
 }
 

@@ -1,6 +1,6 @@
-import type { ConfigData } from './config-data.js'
+import { ConfigData } from './config-data.js'
 
-export const RECOMMENDED_PRESET: ConfigData = {
+export default {
   rules: {
     'function-max-lines': { max: 60 },
     'function-max-complexity': { max: 10 },
@@ -33,4 +33,4 @@ export const RECOMMENDED_PRESET: ConfigData = {
     '.gradle',
     '.idea',
   ],
-}
+} as ConfigData

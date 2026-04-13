@@ -44,14 +44,9 @@ describe('function-max-nesting', () => {
 
   it('uses default max of 4', () => {
     // depth 4: 4 nested if_statement nodes
-    const node = makeBranch('function_declaration',
-      makeBranch('if_statement',
-        makeBranch('if_statement',
-          makeBranch('if_statement',
-            makeBranch('if_statement'),
-          ),
-        ),
-      ),
+    const node = makeBranch(
+      'function_declaration',
+      makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement'))))
     )
     const rule = getRule()
     const ctx = makeContext('typescript')
@@ -62,16 +57,12 @@ describe('function-max-nesting', () => {
 
   it('reports when depth exceeds default max', () => {
     // depth 5: 5 nested if_statement nodes
-    const node = makeBranch('function_declaration',
-      makeBranch('if_statement',
-        makeBranch('if_statement',
-          makeBranch('if_statement',
-            makeBranch('if_statement',
-              makeBranch('if_statement'),
-            ),
-          ),
-        ),
-      ),
+    const node = makeBranch(
+      'function_declaration',
+      makeBranch(
+        'if_statement',
+        makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement'))))
+      )
     )
     const rule = getRule()
     const ctx = makeContext('typescript')
@@ -82,11 +73,7 @@ describe('function-max-nesting', () => {
 
   it('uses custom max from config', () => {
     // depth 2
-    const node = makeBranch('function_declaration',
-      makeBranch('if_statement',
-        makeBranch('if_statement'),
-      ),
-    )
+    const node = makeBranch('function_declaration', makeBranch('if_statement', makeBranch('if_statement')))
     const rule = getRule({ max: 1 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
@@ -109,16 +96,12 @@ describe('function-max-nesting', () => {
     { type: 'method_declaration', language: 'java' },
   ])('matches $type node type in $language', ({ type, language }) => {
     // depth 5
-    const node = makeBranch(type,
-      makeBranch('if_statement',
-        makeBranch('if_statement',
-          makeBranch('if_statement',
-            makeBranch('if_statement',
-              makeBranch('if_statement'),
-            ),
-          ),
-        ),
-      ),
+    const node = makeBranch(
+      type,
+      makeBranch(
+        'if_statement',
+        makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement'))))
+      )
     )
     const rule = getRule({ max: 2 })
     const ctx = makeContext(language)
@@ -128,14 +111,9 @@ describe('function-max-nesting', () => {
   })
 
   it('ignores non-function nodes', () => {
-    const node = makeBranch('if_statement',
-      makeBranch('if_statement',
-        makeBranch('if_statement',
-          makeBranch('if_statement',
-            makeBranch('if_statement'),
-          ),
-        ),
-      ),
+    const node = makeBranch(
+      'if_statement',
+      makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement'))))
     )
     const rule = getRule({ max: 2 })
     const ctx = makeContext('typescript')
@@ -145,22 +123,15 @@ describe('function-max-nesting', () => {
   })
 
   it('includes actual and max depth in message', () => {
-    const node = makeBranch('function_declaration',
-      makeBranch('if_statement',
-        makeBranch('if_statement',
-          makeBranch('if_statement'),
-        ),
-      ),
+    const node = makeBranch(
+      'function_declaration',
+      makeBranch('if_statement', makeBranch('if_statement', makeBranch('if_statement')))
     )
     const rule = getRule({ max: 1 })
     const ctx = makeContext('typescript')
     const report = vi.fn()
     callVisitor(rule, node, ctx, report)
-    expect(report).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('3') }),
-    )
-    expect(report).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('1') }),
-    )
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('3') }))
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('1') }))
   })
 })
