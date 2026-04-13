@@ -3,6 +3,28 @@ import { LANGUAGES, type LanguageDefinition } from '../core/languages.js'
 import { parse } from '../core/parser.js'
 import type { FileContext, Handler, Rule, SyntaxNode } from '../rules/rule.js'
 
+function nodeMatchesVisitors(
+  node: SyntaxNode,
+  rule: Omit<Rule, 'id'>,
+  langDef: LanguageDefinition,
+  context: FileContext
+): boolean {
+  for (const [rawKey, fn] of Object.entries(rule.visitors) as [string, Handler][]) {
+    if (fn == null) continue
+    const resolved = resolveSelector(rawKey, langDef)
+    for (const { nodeType, isExit } of resolved) {
+      if (isExit || nodeType !== node.type) continue
+      let matched = false
+      const report = () => {
+        matched = true
+      }
+      fn(node, { ...context, report } as any, report)
+      if (matched) return true
+    }
+  }
+  return false
+}
+
 export async function matchesAnyNode(
   rule: Omit<Rule, 'id'>,
   source: string,
@@ -18,19 +40,7 @@ export async function matchesAnyNode(
 
   while (stack.length > 0) {
     const node = stack.pop()!
-    for (const [rawKey, fn] of Object.entries(rule.visitors) as [string, Handler][]) {
-      if (fn == null) continue
-      const resolved = resolveSelector(rawKey, langDef)
-      for (const { nodeType, isExit } of resolved) {
-        if (isExit || nodeType !== node.type) continue
-        let matched = false
-        const report = () => {
-          matched = true
-        }
-        fn(node as SyntaxNode, { ...context, report } as any, report)
-        if (matched) return true
-      }
-    }
+    if (nodeMatchesVisitors(node as SyntaxNode, rule, langDef, context)) return true
     for (let i = 0; i < node.childCount; i++) stack.push(node.child(i)!)
   }
 

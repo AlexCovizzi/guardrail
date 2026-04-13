@@ -6,7 +6,7 @@ import { Command } from 'commander'
 import { globSync } from 'tinyglobby'
 import { Config, ConfigLoadError } from '../config/config.js'
 import { GLOBAL_RULES_DIR } from '../config/paths.js'
-import { Engine } from '../core/engine.js'
+import { Engine, type Result } from '../core/engine.js'
 import { ParseError } from '../core/parser.js'
 import { registerBuiltins } from '../rules/builtin/index.js'
 import { discoverRules } from '../rules/discovery.js'
@@ -103,82 +103,14 @@ program
     }
 
     if (options.claudeCode) {
-      const input = await readStdin()
-      let filePath: string | undefined
-      try {
-        filePath = JSON.parse(input)?.tool_input?.file_path
-      } catch {
-        process.exit(0)
-      }
-      if (!filePath) process.exit(0)
-
-      let source: string
-      try {
-        source = readFileSync(filePath, 'utf-8')
-      } catch (err) {
-        process.stderr.write(`guardrail: cannot read ${filePath}: ${(err as Error).message}\n`)
-        process.exit(2)
-      }
-
-      try {
-        const result = await engine.check(filePath, source)
-        if (!result.passed) {
-          process.stderr.write(`${JSON.stringify(result)}\n`)
-          process.exit(2)
-        }
-      } catch (err) {
-        if (err instanceof ParseError) {
-          process.stderr.write(`guardrail: ${err.message}\n`)
-          process.exit(2)
-        }
-        throw err
-      }
+      await runClaudeCodeHook(engine)
       process.exit(0)
     }
 
     const expanded = expandInputs(files.length === 0 ? ['.'] : files, engine.getIgnorePatterns())
-
-    const results = []
-    for (const file of expanded) {
-      let source: string
-      try {
-        source = readFileSync(file, 'utf-8')
-      } catch (err) {
-        process.stderr.write(`guardrail: cannot read ${file}: ${(err as Error).message}\n`)
-        continue
-      }
-
-      try {
-        results.push(await engine.check(file, source))
-      } catch (err) {
-        if (err instanceof ParseError) {
-          process.stderr.write(`guardrail: ${err.message}\n`)
-          continue
-        }
-        throw err
-      }
-    }
-
-    const hasErrors = results.some((r) => !r.passed)
-
-    if (options.json) {
-      console.log(JSON.stringify(results, null, 2))
-      process.exit(hasErrors ? 1 : 0)
-    }
-
-    for (const result of results) {
-      if (options.quiet && result.violations.length === 0) continue
-      console.log(`${result.passed ? '✓' : '✗'} ${result.filename}`)
-      for (const v of result.violations) {
-        console.log(`  ${v.severity}: ${v.message} [${v.ruleId}] (${v.location.start.line}:${v.location.start.column})`)
-      }
-    }
-
-    const errors = results.reduce((sum, r) => sum + r.violations.filter((v) => v.severity === 'error').length, 0)
-    const warnings = results.reduce((sum, r) => sum + r.violations.filter((v) => v.severity === 'warning').length, 0)
-    console.log(`\n${results.length} file(s), ${errors} error(s), ${warnings} warning(s)`)
-
-    process.exit(hasErrors ? 1 : 0)
+    const results = await checkFiles(engine, expanded)
+    outputResults(results, options)
+    process.exit(results.some((r) => !r.passed) ? 1 : 0)
   })
 
 program
@@ -212,6 +144,83 @@ function stringifyConfig(data: object): string {
   return JSON.stringify(data, null, 2)
 }
 
+async function runClaudeCodeHook(engine: Engine): Promise<never> {
+  const input = await readStdin()
+  let filePath: string | undefined
+  try {
+    filePath = JSON.parse(input)?.tool_input?.file_path
+  } catch {
+    process.exit(0)
+  }
+  if (!filePath) process.exit(0)
+
+  let source: string
+  try {
+    source = readFileSync(filePath, 'utf-8')
+  } catch (err) {
+    process.stderr.write(`guardrail: cannot read ${filePath}: ${(err as Error).message}\n`)
+    process.exit(2)
+  }
+
+  try {
+    const result = await engine.check(filePath, source)
+    if (!result.passed) {
+      process.stderr.write(`${JSON.stringify(result)}\n`)
+      process.exit(2)
+    }
+  } catch (err) {
+    if (err instanceof ParseError) {
+      process.stderr.write(`guardrail: ${err.message}\n`)
+      process.exit(2)
+    }
+    throw err
+  }
+  process.exit(0)
+}
+
+async function checkFiles(engine: Engine, files: string[]): Promise<Result[]> {
+  const results: Result[] = []
+  for (const file of files) {
+    let source: string
+    try {
+      source = readFileSync(file, 'utf-8')
+    } catch (err) {
+      process.stderr.write(`guardrail: cannot read ${file}: ${(err as Error).message}\n`)
+      continue
+    }
+
+    try {
+      results.push(await engine.check(file, source))
+    } catch (err) {
+      if (err instanceof ParseError) {
+        process.stderr.write(`guardrail: ${err.message}\n`)
+        continue
+      }
+      throw err
+    }
+  }
+  return results
+}
+
+function outputResults(results: Result[], options: { json: boolean; quiet: boolean; claudeCode: boolean }): void {
+  if (options.json) {
+    console.log(JSON.stringify(results, null, 2))
+    return
+  }
+
+  for (const result of results) {
+    if (options.quiet && result.violations.length === 0) continue
+    console.log(`${result.passed ? '✓' : '✗'} ${result.filename}`)
+    for (const v of result.violations) {
+      console.log(`  ${v.severity}: ${v.message} [${v.ruleId}] (${v.location.start.line}:${v.location.start.column})`)
+    }
+  }
+
+  const errors = results.reduce((sum, r) => sum + r.violations.filter((v) => v.severity === 'error').length, 0)
+  const warnings = results.reduce((sum, r) => sum + r.violations.filter((v) => v.severity === 'warning').length, 0)
+  console.log(`\n${results.length} file(s), ${errors} error(s), ${warnings} warning(s)`)
+}
+
 function expandInputs(inputs: string[], ignorePatterns: string[]): string[] {
   const result: string[] = []
   for (const input of inputs) {
@@ -220,7 +229,9 @@ function expandInputs(inputs: string[], ignorePatterns: string[]): string[] {
       result.push(...globSync(pattern, { onlyFiles: true, ignore: ignorePatterns }))
     } else {
       const matches = globSync(input, { onlyFiles: true, ignore: ignorePatterns })
-      result.push(...(matches.length > 0 ? matches : [input]))
+      if (matches.length > 0) {
+        result.push(...matches)
+      }
     }
   }
   return result.filter((f) => existsSync(f))

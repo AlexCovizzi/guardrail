@@ -87,51 +87,69 @@ function mergeOverrides(base: ConfigData['overrides'], override: ConfigData['ove
   )
 }
 
+function validateRules(rules: unknown): void {
+  if (rules === undefined) return
+  if (typeof rules !== 'object' || rules === null || Array.isArray(rules)) {
+    throw new ConfigLoadError('"rules" must be an object')
+  }
+  for (const [id, rc] of Object.entries(rules)) {
+    if (typeof rc !== 'object' || rc === null || Array.isArray(rc)) {
+      throw new ConfigLoadError(`rule "${id}" config must be an object`)
+    }
+    validateRuleConfig(id, rc as Record<string, unknown>)
+  }
+}
+
+function validateRuleConfig(id: string, rc: Record<string, unknown>): void {
+  if ('severity' in rc && rc.severity !== 'error' && rc.severity !== 'warning') {
+    throw new ConfigLoadError(`rule "${id}": severity must be "error" or "warning", got "${rc.severity}"`)
+  }
+  if ('enabled' in rc && typeof rc.enabled !== 'boolean') {
+    throw new ConfigLoadError(`rule "${id}": enabled must be a boolean`)
+  }
+  if ('disabled' in rc && typeof rc.disabled !== 'boolean') {
+    throw new ConfigLoadError(`rule "${id}": disabled must be a boolean`)
+  }
+}
+
+function validateOverrides(overrides: unknown): void {
+  if (overrides === undefined) return
+  if (typeof overrides !== 'object' || overrides === null || Array.isArray(overrides)) {
+    throw new ConfigLoadError('"overrides" must be an object')
+  }
+  for (const [lang, val] of Object.entries(overrides)) {
+    if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+      throw new ConfigLoadError(`override for "${lang}" must be an object`)
+    }
+    validateOverrideRules(lang, (val as Record<string, unknown>).rules)
+  }
+}
+
+function validateOverrideRules(lang: string, rules: unknown): void {
+  if (rules === undefined) return
+  if (typeof rules !== 'object' || rules === null || Array.isArray(rules)) {
+    throw new ConfigLoadError(`override for "${lang}": rules must be an object`)
+  }
+}
+
+function validateExtends(extends_val: unknown): void {
+  if (extends_val === undefined) return
+  const isValid = typeof extends_val === 'string' || (Array.isArray(extends_val) && extends_val.every((v) => typeof v === 'string'))
+  if (!isValid) throw new ConfigLoadError('"extends" must be a string or array of strings')
+}
+
+function validateIgnore(ignore: unknown): void {
+  if (ignore === undefined) return
+  if (!Array.isArray(ignore) || !ignore.every((v) => typeof v === 'string')) {
+    throw new ConfigLoadError('"ignore" must be an array of glob strings')
+  }
+}
+
 function validateStructure(raw: ConfigData): void {
-  if (raw.rules !== undefined) {
-    if (typeof raw.rules !== 'object' || raw.rules === null || Array.isArray(raw.rules)) {
-      throw new ConfigLoadError('"rules" must be an object')
-    }
-    for (const [id, rc] of Object.entries(raw.rules)) {
-      if (typeof rc !== 'object' || rc === null || Array.isArray(rc)) {
-        throw new ConfigLoadError(`rule "${id}" config must be an object`)
-      }
-      if ('severity' in rc && rc.severity !== 'error' && rc.severity !== 'warning') {
-        throw new ConfigLoadError(`rule "${id}": severity must be "error" or "warning", got "${rc.severity}"`)
-      }
-      if ('enabled' in rc && typeof rc.enabled !== 'boolean') {
-        throw new ConfigLoadError(`rule "${id}": enabled must be a boolean`)
-      }
-      if ('disabled' in rc && typeof rc.disabled !== 'boolean') {
-        throw new ConfigLoadError(`rule "${id}": disabled must be a boolean`)
-      }
-    }
-  }
-  if (raw.overrides !== undefined) {
-    if (typeof raw.overrides !== 'object' || raw.overrides === null || Array.isArray(raw.overrides)) {
-      throw new ConfigLoadError('"overrides" must be an object')
-    }
-    for (const [lang, val] of Object.entries(raw.overrides)) {
-      if (typeof val !== 'object' || val === null || Array.isArray(val)) {
-        throw new ConfigLoadError(`override for "${lang}" must be an object`)
-      }
-      if (val.rules !== undefined) {
-        if (typeof val.rules !== 'object' || val.rules === null || Array.isArray(val.rules)) {
-          throw new ConfigLoadError(`override for "${lang}": rules must be an object`)
-        }
-      }
-    }
-  }
-  if (raw.extends !== undefined) {
-    const val = raw.extends
-    const isValid = typeof val === 'string' || (Array.isArray(val) && val.every((v) => typeof v === 'string'))
-    if (!isValid) throw new ConfigLoadError('"extends" must be a string or array of strings')
-  }
-  if (raw.ignore !== undefined) {
-    if (!Array.isArray(raw.ignore) || !raw.ignore.every((v) => typeof v === 'string')) {
-      throw new ConfigLoadError('"ignore" must be an array of glob strings')
-    }
-  }
+  validateRules(raw.rules)
+  validateOverrides(raw.overrides)
+  validateExtends(raw.extends)
+  validateIgnore(raw.ignore)
 }
 
 export class ConfigLoadError extends Error {
