@@ -33,8 +33,6 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-// ── Config.load ────────────────────────────────────────────────────────────
-
 describe('Config.load', () => {
   it('returns config when no global or local config exists', async () => {
     mockExistsSync.mockReturnValue(false)
@@ -146,8 +144,6 @@ describe('Config.load', () => {
   })
 })
 
-// ── Glob overrides ─────────────────────────────────────────────────────────
-
 describe('Config glob overrides', () => {
   it('applies override when filename matches glob', async () => {
     mockExistsSync.mockReturnValue(false)
@@ -193,8 +189,6 @@ describe('Config glob overrides', () => {
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(60)
   })
 })
-
-// ── Config validation ──────────────────────────────────────────────────────
 
 describe('Config.load validation', () => {
   it('throws on rules being a non-object', async () => {
@@ -269,8 +263,6 @@ describe('Config.load validation', () => {
   })
 })
 
-// ── Extends / presets ───────────────────────────────────────────────────────
-
 describe('Config.load extends', () => {
   it('resolves extends: recommended with preset rules and ignore', async () => {
     mockExistsSync.mockReturnValue(false)
@@ -342,8 +334,6 @@ describe('Config.load extends', () => {
     expect(config.getIgnorePatterns()).toEqual([])
   })
 })
-
-// ── Ignore merging ──────────────────────────────────────────────────────────
 
 describe('Config ignore merging', () => {
   it('deduplicates overlapping ignore patterns', async () => {

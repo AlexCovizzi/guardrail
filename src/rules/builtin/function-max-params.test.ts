@@ -108,7 +108,7 @@ describe('function-max-params', () => {
     callVisitor(rule, makeFunction('function_definition', 3, 'parameters'), ctx, report)
     expect(report).toHaveBeenCalledOnce()
     callVisitor(rule, makeFunction('function_definition', 2, 'parameters'), ctx, report)
-    expect(report).toHaveBeenCalledOnce() // still only once — second call didn't trigger
+    expect(report).toHaveBeenCalledOnce() // still only once: second call didn't trigger
   })
 
   it('matches java method_declaration and constructor_declaration', () => {
