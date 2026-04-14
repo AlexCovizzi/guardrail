@@ -112,17 +112,7 @@ export class ProjectIndex implements ProjectContext {
     for (const kind of targetKinds) {
       const kindMap = this.byKind.get(kind)
       if (!kindMap) continue
-
-      if (name === '') {
-        for (const entries of kindMap.values()) results.push(...entries)
-      } else if (typeof name === 'string') {
-        const entries = kindMap.get(name)
-        if (entries) results.push(...entries)
-      } else {
-        for (const [entryName, entries] of kindMap) {
-          if (name.test(entryName)) results.push(...entries)
-        }
-      }
+      results.push(...this.matchEntries(kindMap, name))
     }
 
     return results
@@ -167,5 +157,22 @@ export class ProjectIndex implements ProjectContext {
 
   private buildContext(filename: string, source: string, language: LanguageDefinition): SearchContext {
     return { source, filename, language }
+  }
+
+  private matchEntries(kindMap: Map<string, SearchResult[]>, name: string | RegExp): SearchResult[] {
+    if (name === '') {
+      const results: SearchResult[] = []
+      for (const entries of kindMap.values()) results.push(...entries)
+      return results
+    } else if (typeof name === 'string') {
+      const entries = kindMap.get(name)
+      return entries ? [...entries] : []
+    } else {
+      const results: SearchResult[] = []
+      for (const [entryName, entries] of kindMap) {
+        if (name.test(entryName)) results.push(...entries)
+      }
+      return results
+    }
   }
 }
