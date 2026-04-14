@@ -1,5 +1,13 @@
 import type { RuleConfig } from '../config/rule-config.js'
-import type { LanguageDefinition, SemanticTypeName } from '../core/languages.js'
+import type { LanguageDefinition, SemanticTypeName } from '../core/language.js'
+import type { ProjectContext } from '../core/project-index.js'
+
+export interface RuleContext {
+  source: string
+  filename: string
+  language: LanguageDefinition
+  project: ProjectContext
+}
 
 export interface SyntaxNode {
   type: string
@@ -31,20 +39,9 @@ export interface Location {
 
 export type ReportFn = (violation: { message: string }) => void
 
-export interface FileContext {
-  source: string
-  filename: string
-  language: LanguageDefinition
-  tree: any
-}
-
 export type Selector = SemanticTypeName | `${SemanticTypeName}Exit` | `_${string}` | `_${string}Exit`
 
-export type Handler = (node: SyntaxNode, ctx: FileContext, report: ReportFn) => void
-
-export interface RuleContext extends FileContext {
-  report: ReportFn
-}
+export type Handler = (node: SyntaxNode, ctx: RuleContext, report: ReportFn) => void
 
 export type RegisterFn = (id: string, definition: RuleDefinition) => void
 

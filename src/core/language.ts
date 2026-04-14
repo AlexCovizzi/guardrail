@@ -1,5 +1,6 @@
-const javascript: LanguageDefinition = {
+const JAVASCRIPT: LanguageDefinition = {
   name: 'javascript',
+  extensions: ['js'],
   types: {
     function: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
     class: ['class_declaration', 'class'],
@@ -19,14 +20,15 @@ const javascript: LanguageDefinition = {
   },
 }
 
-const jsx: LanguageDefinition = { ...javascript, name: 'jsx' }
+const JSX: LanguageDefinition = { ...JAVASCRIPT, name: 'jsx', extensions: ['jsx'] }
 
-const typescript: LanguageDefinition = { ...javascript, name: 'typescript' }
+const TYPESCRIPT: LanguageDefinition = { ...JAVASCRIPT, name: 'typescript', extensions: ['ts'] }
 
-const tsx: LanguageDefinition = { ...javascript, name: 'tsx' }
+const TSX: LanguageDefinition = { ...JAVASCRIPT, name: 'tsx', extensions: ['tsx'] }
 
-const python: LanguageDefinition = {
+const PYTHON: LanguageDefinition = {
   name: 'python',
+  extensions: ['py'],
   types: {
     function: ['function_definition'],
     class: ['class_definition'],
@@ -43,8 +45,9 @@ const python: LanguageDefinition = {
   },
 }
 
-const java: LanguageDefinition = {
+const JAVA: LanguageDefinition = {
   name: 'java',
+  extensions: ['java'],
   types: {
     function: ['method_declaration', 'constructor_declaration', 'compact_constructor_declaration'],
     class: ['class_declaration'],
@@ -63,8 +66,9 @@ const java: LanguageDefinition = {
   },
 }
 
-const kotlin: LanguageDefinition = {
+const KOTLIN: LanguageDefinition = {
   name: 'kotlin',
+  extensions: ['kt', 'kts'],
   types: {
     function: ['function_declaration', 'anonymous_function', 'lambda_expression', 'getter', 'setter', 'init_clause'],
     class: ['class_declaration', 'object_declaration'],
@@ -76,6 +80,7 @@ const kotlin: LanguageDefinition = {
 
 export interface LanguageDefinition {
   name: string
+  extensions: readonly string[]
   types: {
     function: readonly string[]
     class: readonly string[]
@@ -85,48 +90,23 @@ export interface LanguageDefinition {
   }
 }
 
-export const LANGUAGES: Record<string, LanguageDefinition> = {
-  javascript,
-  jsx,
-  typescript,
-  tsx,
-  python,
-  java,
-  kotlin,
-}
-
-export type LanguageName = keyof typeof LANGUAGES
-
 export type SemanticTypeName = keyof LanguageDefinition['types']
 
-export function detectLanguage(filename: string): LanguageDefinition {
-  const ext = filename.slice(filename.lastIndexOf('.'))
-  let name: LanguageName
-  switch (ext) {
-    case '.tsx':
-      name = 'tsx'
-      break
-    case '.ts':
-      name = 'typescript'
-      break
-    case '.jsx':
-      name = 'jsx'
-      break
-    case '.js':
-      name = 'javascript'
-      break
-    case '.py':
-      name = 'python'
-      break
-    case '.java':
-      name = 'java'
-      break
-    case '.kt':
-    case '.kts':
-      name = 'kotlin'
-      break
-    default:
-      throw new Error(`Cannot detect language for: ${filename}`)
-  }
-  return LANGUAGES[name]
+export const Language: Record<string, LanguageDefinition> = {
+  JAVASCRIPT,
+  JSX,
+  TYPESCRIPT,
+  TSX,
+  PYTHON,
+  JAVA,
+  KOTLIN,
+}
+
+export const SUPPORTED_EXTENSIONS: string[] = Object.values(Language).flatMap((l) => l.extensions)
+
+export function detectLanguage(filename: string): LanguageDefinition | null {
+  const dot = filename.lastIndexOf('.')
+  if (dot === -1) return null
+  const ext = filename.slice(dot + 1)
+  return Object.values(Language).find((l) => l.extensions.includes(ext)) ?? null
 }

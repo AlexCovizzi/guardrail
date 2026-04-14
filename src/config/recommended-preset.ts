@@ -1,4 +1,4 @@
-import { ConfigData } from './config-data.js'
+import type { ConfigData } from './config-data.js'
 
 export default {
   rules: {

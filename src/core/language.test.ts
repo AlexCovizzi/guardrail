@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectLanguage } from './languages.js'
+import { detectLanguage } from './language.js'
 
 describe('detectLanguage', () => {
   it.each([
@@ -12,10 +12,11 @@ describe('detectLanguage', () => {
     ['file.kt', 'kotlin'],
     ['file.kts', 'kotlin'],
   ])('%s → %s', (filename, expected) => {
-    expect(detectLanguage(filename).name).toBe(expected)
+    const language = detectLanguage(filename)
+    expect(language?.name).toBe(expected)
   })
 
-  it('throws for unsupported extensions', () => {
-    expect(() => detectLanguage('file.rb')).toThrow('Cannot detect language for: file.rb')
+  it('returns null for unsupported extensions', () => {
+    expect(detectLanguage('file.rb')).toBeNull()
   })
 })

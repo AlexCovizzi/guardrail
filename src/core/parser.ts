@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import * as TreeSitter from 'web-tree-sitter'
-import type { LanguageName } from './languages.js'
+import { getFileExtension } from './files.js'
 
 const require = createRequire(import.meta.url)
 
@@ -9,28 +9,32 @@ const require = createRequire(import.meta.url)
 // Works regardless of cwd or whether running from src/ or dist/.
 const wasm = (pkg: string, file: string) => join(dirname(require.resolve(`${pkg}/package.json`)), file)
 
-const WASM_PATHS: Record<LanguageName, string> = {
-  javascript: wasm('tree-sitter-javascript', 'tree-sitter-javascript.wasm'),
+const WASM_PATH_BY_EXTENSION: Record<string, string> = {
+  js: wasm('tree-sitter-javascript', 'tree-sitter-javascript.wasm'),
   jsx: wasm('tree-sitter-javascript', 'tree-sitter-javascript.wasm'),
-  typescript: wasm('tree-sitter-typescript', 'tree-sitter-typescript.wasm'),
+  ts: wasm('tree-sitter-typescript', 'tree-sitter-typescript.wasm'),
   tsx: wasm('tree-sitter-typescript', 'tree-sitter-tsx.wasm'),
-  python: wasm('tree-sitter-python', 'tree-sitter-python.wasm'),
+  py: wasm('tree-sitter-python', 'tree-sitter-python.wasm'),
   java: wasm('tree-sitter-java', 'tree-sitter-java.wasm'),
-  kotlin: wasm('@tree-sitter-grammars/tree-sitter-kotlin', 'tree-sitter-kotlin.wasm'),
+  kt: wasm('@tree-sitter-grammars/tree-sitter-kotlin', 'tree-sitter-kotlin.wasm'),
+  kts: wasm('@tree-sitter-grammars/tree-sitter-kotlin', 'tree-sitter-kotlin.wasm'),
 }
 
 let initialized = false
 const languageCache = new Map<string, TreeSitter.Language>()
 
-async function getTreeSitterLanguage(name: string): Promise<TreeSitter.Language> {
-  const cached = languageCache.get(name)
+async function getTreeSitterLanguage(filename: string): Promise<TreeSitter.Language> {
+  const extension = getFileExtension(filename)
+  if (!extension) throw new Error(`Could not determine file extension: ${filename}`)
+
+  const cached = languageCache.get(extension)
   if (cached) return cached
 
-  const wasmPath = WASM_PATHS[name as LanguageName]
-  if (!wasmPath) throw new Error(`Unsupported language: ${name}`)
+  const wasmPath = WASM_PATH_BY_EXTENSION[extension]
+  if (!wasmPath) throw new Error(`Unsupported file extension: ${filename}`)
 
   const lang = await TreeSitter.Language.load(wasmPath)
-  languageCache.set(name, lang)
+  languageCache.set(extension, lang)
   return lang
 }
 
@@ -46,23 +50,33 @@ export class ParseError extends Error {
     public readonly languageName: string,
     public readonly cause?: unknown
   ) {
-    super(`Failed to parse ${filename} (${languageName})`)
+    super(`Failed to parse ${filename} (${languageName}): ${cause}`)
     this.name = 'ParseError'
   }
 }
 
-export async function parse(source: string, language: { name: string }, filename?: string): Promise<TreeSitter.Tree> {
-  await initParser()
+export class Parser {
+  static async load() {
+    await initParser()
+    return new Parser()
+  }
 
-  try {
-    const parser = new TreeSitter.Parser()
-    parser.setLanguage(await getTreeSitterLanguage(language.name))
+  async parse(file: string, source: string): Promise<TreeSitter.Tree> {
+    const language = await getTreeSitterLanguage(file)
+    if (!language) throw new ParseError(file, '<unknown>', 'Could not find language')
 
-    const tree = parser.parse(source)
-    if (!tree) throw new ParseError(filename ?? '<unknown>', language.name)
+    let tree: TreeSitter.Tree | null = null
+    try {
+      const parser = new TreeSitter.Parser()
+      parser.setLanguage(language)
+
+      tree = parser.parse(source)
+    } catch (err) {
+      throw new ParseError(file ?? '<unknown>', language.name ?? '<unknown>', err)
+    }
+
+    if (!tree) throw new ParseError(file ?? '<unknown>', language.name ?? '<unknown>')
+
     return tree
-  } catch (err) {
-    if (err instanceof ParseError) throw err
-    throw new ParseError(filename ?? '<unknown>', language.name, err)
   }
 }

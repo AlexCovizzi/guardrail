@@ -1,8 +1,12 @@
-import { Config } from '../config/config.js'
-import { discoverAllRules, instantiateRules } from '../rules/loader.js'
-import type { FileContext, Handler, Location, ReportFn, Rule } from '../rules/rule.js'
-import { detectLanguage, LANGUAGES, type LanguageDefinition, type SemanticTypeName } from './languages.js'
-import { ParseError, parse } from './parser.js'
+import { readFileSync } from 'node:fs'
+import type { Config } from '../config/config.js'
+import type { RuleRegistry } from '../rules/registry.js'
+import type { Handler, Location, ReportFn, Rule, RuleContext } from '../rules/rule.js'
+import type { Cache } from './cache.js'
+import { expandInputs } from './files.js'
+import { detectLanguage, type LanguageDefinition, type SemanticTypeName } from './language.js'
+import { ParseError, type Parser } from './parser.js'
+import type { ProjectIndex } from './project-index.js'
 
 export interface Violation {
   ruleId: string
@@ -61,48 +65,85 @@ function buildDispatchMap(rules: Rule[], language: LanguageDefinition): Dispatch
 }
 
 export class Engine {
-  private constructor(
-    private rulesByLanguage: Map<string, Rule[]>,
-    private ignorePatterns: string[]
+  constructor(
+    private parser: Parser,
+    private config: Config,
+    private cache: Cache,
+    private registry: RuleRegistry
   ) {}
 
-  static async create(cwd?: string): Promise<Engine> {
-    const config = Config.load(cwd)
-    const registry = await discoverAllRules()
+  async check(targets: string[]): Promise<Result[]> {
+    const projectFiles = expandInputs(['.'], this.config.getIgnorePatterns())
+    const expanded = expandInputs(targets, this.config.getIgnorePatterns())
+    const { changed, deleted } = this.cache.diff(projectFiles)
 
-    const knownIds = new Set(registry.getEntries().map((e) => e.ruleId))
-    for (const id of config.getConfiguredRuleIds()) {
-      if (!knownIds.has(id)) {
-        process.stderr.write(`guardrail: unknown rule "${id}" in config\n`)
-      }
-    }
+    // Parse changed files
+    const changedData = (
+      await Promise.all(
+        changed.map(async (file) => {
+          try {
+            const language = detectLanguage(file)
+            if (!language) return null
 
-    const rulesByLanguage = new Map<string, Rule[]>()
-    for (const lang of Object.values(LANGUAGES)) {
-      rulesByLanguage.set(lang.name, instantiateRules(registry, config.forLanguage(lang.name)))
-    }
-    return new Engine(rulesByLanguage, config.getIgnorePatterns())
+            const source = readFileSync(file, 'utf-8')
+            const tree = await this.parser.parse(file, source)
+
+            return { filename: file, source, language, tree }
+          } catch (err) {
+            if (err instanceof ParseError) {
+              process.stderr.write(`guardrail: ${err.message}\n`)
+              return null
+            }
+            throw err
+          }
+        })
+      )
+    ).filter((d): d is NonNullable<typeof d> => d !== null)
+
+    this.cache.updateChanged(changedData)
+    this.cache.removeDeleted(deleted)
+    this.cache.write()
+
+    const index = this.cache.getIndex()
+    const changedSources = new Map(changedData.map((d) => [d.filename, d.source]))
+
+    // Run rules on target files only, reusing already-read source for changed files
+    return (
+      await Promise.all(
+        expanded.map(async (file) => {
+          try {
+            const source = changedSources.get(file)
+            if (source !== undefined) {
+              return await this.checkFileWithSource(file, source, index)
+            }
+            return await this.checkFile(file, index)
+          } catch (err) {
+            if (err instanceof ParseError) {
+              process.stderr.write(`guardrail: ${err.message}\n`)
+              return null
+            }
+            throw err
+          }
+        })
+      )
+    ).filter((r): r is Result => r !== null)
   }
 
-  static createWithRules(rulesByLanguage: Map<string, Rule[]>): Engine {
-    return new Engine(rulesByLanguage, [])
+  private async checkFile(filename: string, index: ProjectIndex): Promise<Result> {
+    const source = readFileSync(filename, 'utf-8')
+    return this.checkFileWithSource(filename, source, index)
   }
 
-  getIgnorePatterns(): string[] {
-    return this.ignorePatterns
-  }
-
-  async check(filename: string, source: string): Promise<Result> {
+  private async checkFileWithSource(filename: string, source: string, index: ProjectIndex): Promise<Result> {
     const language = detectLanguage(filename)
-    const rules = this.rulesByLanguage.get(language.name) ?? []
-    const tree = await parse(source, language, filename)
-    const context: FileContext = { source, filename, language, tree }
+    if (!language) return { filename, violations: [], passed: true }
+    const rules = this.registry
+      .createRules(this.config.forFile(filename))
+      .filter((r) => !r.languages || r.languages.includes(language.name))
+    const tree = await this.parser.parse(filename, source)
+    const context: RuleContext = { source, filename, language, project: index }
     const violations: Violation[] = []
-
-    const activeRules = rules.filter(
-      (r) => r.enabled !== false && (!r.languages || r.languages.includes(language.name))
-    )
-    const dispatchMap = buildDispatchMap(activeRules, language)
+    const dispatchMap = buildDispatchMap(rules, language)
 
     const stack: Array<[any, boolean]> = [[tree.walk().currentNode, false]]
 
@@ -125,7 +166,7 @@ export class Engine {
               severity: rule.severity,
             })
           }
-          fn(node, { ...context }, report)
+          fn(node, context, report)
         }
       }
 

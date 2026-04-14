@@ -1,4 +1,4 @@
-import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
 
 function measureDepth(node: SyntaxNode, branchTypes: Set<string>, current: number): number {
   let maxChild = current
@@ -19,7 +19,7 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 4, min: 1 })
 
       return {
-        function(node: SyntaxNode, ctx: FileContext, report: ReportFn): void {
+        function(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
           const branchTypes = new Set(ctx.language.types.branch)
           const depth = measureDepth(node, branchTypes, 0)
           if (depth <= max) return

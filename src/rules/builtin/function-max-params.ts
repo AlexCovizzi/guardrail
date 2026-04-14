@@ -1,4 +1,4 @@
-import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
 
 function countParams(node: SyntaxNode, paramNodeType: string): number {
   for (let i = 0; i < node.childCount; i++) {
@@ -17,7 +17,7 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 4, min: 0 })
 
       return {
-        function(node: SyntaxNode, ctx: FileContext, report: ReportFn): void {
+        function(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
           const paramNodeType = ctx.language.types.parameters[0]
           if (!paramNodeType) return
 

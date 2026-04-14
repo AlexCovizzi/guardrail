@@ -1,6 +1,19 @@
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-export const GLOBAL_CONFIG_DIR = join(homedir(), '.guardrail')
-export const GLOBAL_CONFIG_PATH = join(GLOBAL_CONFIG_DIR, 'config.yaml')
-export const GLOBAL_RULES_DIR = join(GLOBAL_CONFIG_DIR, 'rules')
+export function globalPaths(home: string) {
+  const configDir = join(home, '.guardrail')
+  return {
+    configDir,
+    configPath: join(configDir, 'config.yaml'),
+    rulesDir: join(configDir, 'rules'),
+    cacheDir: join(configDir, 'cache'),
+  }
+}
+
+export function localPaths(cwd: string) {
+  const configDir = join(cwd, '.guardrail')
+  return {
+    configDir,
+    rulesDir: join(configDir, 'rules'),
+  }
+}

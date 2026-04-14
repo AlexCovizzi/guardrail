@@ -1,4 +1,4 @@
-import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
 
 function countMethods(node: SyntaxNode, functionTypes: Set<string>, classTypes: Set<string>): number {
   let count = 0
@@ -37,7 +37,7 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 20, min: 1 })
 
       return {
-        class(node: SyntaxNode, ctx: FileContext, report: ReportFn): void {
+        class(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
           const functionTypes = new Set(ctx.language.types.function)
           const classTypes = new Set(ctx.language.types.class)
           const count = countMethods(node, functionTypes, classTypes)

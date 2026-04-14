@@ -1,13 +1,14 @@
 import { resolveSelector } from '../core/engine.js'
-import { LANGUAGES, type LanguageDefinition } from '../core/languages.js'
-import { parse } from '../core/parser.js'
-import type { FileContext, Handler, Rule, SyntaxNode } from '../rules/rule.js'
+import type { LanguageDefinition } from '../core/language.js'
+import { Parser } from '../core/parser.js'
+import type { Handler, Rule, RuleContext, SyntaxNode } from '../rules/rule.js'
+import { findLanguage } from './fixtures.js'
 
 function nodeMatchesVisitors(
   node: SyntaxNode,
   rule: Omit<Rule, 'id'>,
   langDef: LanguageDefinition,
-  context: FileContext
+  context: RuleContext
 ): boolean {
   for (const [rawKey, fn] of Object.entries(rule.visitors) as [string, Handler][]) {
     if (fn == null) continue
@@ -25,17 +26,32 @@ function nodeMatchesVisitors(
   return false
 }
 
+let parserInstance: Parser | null = null
+
+async function getParser(): Promise<Parser> {
+  if (!parserInstance) {
+    parserInstance = await Parser.load()
+  }
+  return parserInstance
+}
+
 export async function matchesAnyNode(
   rule: Omit<Rule, 'id'>,
   source: string,
   language: string | LanguageDefinition
 ): Promise<boolean> {
-  const langDef = typeof language === 'string' ? LANGUAGES[language] : language
+  const langDef = typeof language === 'string' ? findLanguage(language) : language
   if (!langDef) return false
-  const tree = await parse(source, langDef)
+  const parser = await getParser()
+  const tree = await parser.parse(`file.${langDef.extensions[0]}`, source)
   if (!tree) throw new Error('Parse failed')
 
-  const context: FileContext = { source, filename: `file.${langDef.name}`, language: langDef, tree }
+  const context: RuleContext = {
+    source,
+    filename: `file.${langDef.name}`,
+    language: langDef,
+    project: { search: () => [] },
+  }
   const stack: any[] = [tree.rootNode]
 
   while (stack.length > 0) {

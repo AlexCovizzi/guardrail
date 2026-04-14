@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { cosmiconfigSync } from 'cosmiconfig'
 import { TypeScriptLoader } from 'cosmiconfig-typescript-loader'
 import type { ConfigData } from './config-data.js'
-import { LanguageConfig } from './language-config.js'
-import { GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_PATH } from './paths.js'
+import { FileConfig } from './file-config.js'
+import { globalPaths } from './paths.js'
 import recommendedPreset from './recommended-preset.js'
 
-export { type ConfigData, LanguageConfig }
+export type { ConfigData }
 
 const explorer = cosmiconfigSync('guardrail', {
   searchPlaces: ['.guardrail.yaml', '.guardrail.yml', '.guardrail.json', '.guardrail.js', '.guardrail.ts'],
@@ -25,10 +25,10 @@ const DEFAULT_CONFIG = `# Guardrail global configuration
 extends: recommended
 `
 
-function ensureGlobalConfig(): void {
-  if (existsSync(GLOBAL_CONFIG_PATH)) return
-  mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true })
-  writeFileSync(GLOBAL_CONFIG_PATH, DEFAULT_CONFIG)
+function ensureGlobalConfig(configDir: string, configPath: string): void {
+  if (existsSync(configPath)) return
+  mkdirSync(configDir, { recursive: true })
+  writeFileSync(configPath, DEFAULT_CONFIG)
 }
 
 function resolveExtends(raw: ConfigData): ConfigData {
@@ -49,9 +49,9 @@ function normalizeExtends(extends_val: ConfigData['extends']): string[] {
   return Array.isArray(extends_val) ? extends_val : [extends_val]
 }
 
-function loadGlobalConfig(): ConfigData {
-  if (!existsSync(GLOBAL_CONFIG_PATH)) return {}
-  return (explorer.load(GLOBAL_CONFIG_PATH)?.config as ConfigData) ?? {}
+function loadGlobalConfig(configPath: string): ConfigData {
+  if (!existsSync(configPath)) return {}
+  return (explorer.load(configPath)?.config as ConfigData) ?? {}
 }
 
 function loadLocalConfig(cwd: string): ConfigData {
@@ -82,7 +82,7 @@ function mergeOverrides(base: ConfigData['overrides'], override: ConfigData['ove
   if (!base && !override) return undefined
   const keys = new Set([...Object.keys(base ?? {}), ...Object.keys(override ?? {})])
   return Object.fromEntries(
-    [...keys].map((lang) => [lang, { rules: { ...base?.[lang]?.rules, ...override?.[lang]?.rules } }])
+    [...keys].map((glob) => [glob, { rules: { ...base?.[glob]?.rules, ...override?.[glob]?.rules } }])
   )
 }
 
@@ -116,18 +116,18 @@ function validateOverrides(overrides: unknown): void {
   if (typeof overrides !== 'object' || overrides === null || Array.isArray(overrides)) {
     throw new ConfigLoadError('"overrides" must be an object')
   }
-  for (const [lang, val] of Object.entries(overrides)) {
+  for (const [glob, val] of Object.entries(overrides)) {
     if (typeof val !== 'object' || val === null || Array.isArray(val)) {
-      throw new ConfigLoadError(`override for "${lang}" must be an object`)
+      throw new ConfigLoadError(`override for "${glob}" must be an object`)
     }
-    validateOverrideRules(lang, (val as Record<string, unknown>).rules)
+    validateOverrideRules(glob, (val as Record<string, unknown>).rules)
   }
 }
 
-function validateOverrideRules(lang: string, rules: unknown): void {
+function validateOverrideRules(glob: string, rules: unknown): void {
   if (rules === undefined) return
   if (typeof rules !== 'object' || rules === null || Array.isArray(rules)) {
-    throw new ConfigLoadError(`override for "${lang}": rules must be an object`)
+    throw new ConfigLoadError(`override for "${glob}": rules must be an object`)
   }
 }
 
@@ -145,11 +145,11 @@ function validateIgnore(ignore: unknown): void {
   }
 }
 
-function validateStructure(raw: ConfigData): void {
-  validateRules(raw.rules)
-  validateOverrides(raw.overrides)
-  validateExtends(raw.extends)
-  validateIgnore(raw.ignore)
+function validateStructure(data: ConfigData): void {
+  validateRules(data.rules)
+  validateOverrides(data.overrides)
+  validateExtends(data.extends)
+  validateIgnore(data.ignore)
 }
 
 export class ConfigLoadError extends Error {
@@ -162,47 +162,29 @@ export class ConfigLoadError extends Error {
 export class Config {
   private constructor(private data: ConfigData) {}
 
-  static load(cwd: string = process.cwd()): Config {
-    ensureGlobalConfig()
-    const globalConfig = resolveExtends(loadGlobalConfig())
+  static async load(cwd: string, homeDir: string): Promise<Config> {
+    const { configDir, configPath } = globalPaths(homeDir)
+    ensureGlobalConfig(configDir, configPath)
+    const globalConfig = resolveExtends(loadGlobalConfig(configPath))
     const localConfig = resolveExtends(loadLocalConfig(cwd))
     validateStructure(globalConfig)
     validateStructure(localConfig)
     return new Config(mergeConfigs(globalConfig, localConfig))
   }
 
-  static loadData(cwd: string = process.cwd()): { global: ConfigData; local: ConfigData; merged: ConfigData } {
-    ensureGlobalConfig()
-    const globalConfig = resolveExtends(loadGlobalConfig())
-    const localConfig = resolveExtends(loadLocalConfig(cwd))
-    validateStructure(globalConfig)
-    validateStructure(localConfig)
-    return { global: globalConfig, local: localConfig, merged: mergeConfigs(globalConfig, localConfig) }
+  forFile(filename: string): FileConfig {
+    return new FileConfig(this.data, filename)
   }
 
-  static getGlobalConfigPath(): string {
-    return GLOBAL_CONFIG_PATH
-  }
-
-  static getLocalConfigPath(cwd: string): string | null {
-    const result = explorer.search(cwd)
-    return result?.filepath ?? null
-  }
-
-  forLanguage(language: string): LanguageConfig {
-    return new LanguageConfig(this.data, language)
-  }
-
-  getConfiguredRuleIds(): Set<string> {
-    const ids = new Set<string>()
-    for (const id of Object.keys(this.data.rules ?? {})) ids.add(id)
-    for (const override of Object.values(this.data.overrides ?? {})) {
-      for (const id of Object.keys(override.rules ?? {})) ids.add(id)
-    }
-    return ids
+  getOverrides(): ConfigData['overrides'] {
+    return this.data.overrides
   }
 
   getIgnorePatterns(): string[] {
     return this.data.ignore ?? []
+  }
+
+  toJson(): ConfigData {
+    return this.data
   }
 }

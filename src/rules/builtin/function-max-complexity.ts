@@ -1,4 +1,4 @@
-import type { FileContext, RegisterFn, ReportFn, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
 
 function cyclomaticComplexity(node: SyntaxNode, branchTypes: Set<string>): number {
   let complexity = 1
@@ -20,7 +20,7 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 10, min: 1 })
 
       return {
-        function(node: SyntaxNode, ctx: FileContext, report: ReportFn): void {
+        function(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
           const branchTypes = new Set(ctx.language.types.branch)
           const complexity = cyclomaticComplexity(node, branchTypes)
           if (complexity <= max) return

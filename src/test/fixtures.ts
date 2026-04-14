@@ -1,4 +1,4 @@
-import { LANGUAGES, type LanguageDefinition } from '../core/languages.js'
+import { Language, type LanguageDefinition } from '../core/language.js'
 
 export function makeNode(type: string, overrides: Record<string, any> = {}): any {
   return {
@@ -11,14 +11,17 @@ export function makeNode(type: string, overrides: Record<string, any> = {}): any
   }
 }
 
+export function findLanguage(nameOrKey: string): LanguageDefinition | undefined {
+  return Language[nameOrKey as keyof typeof Language] ?? Object.values(Language).find((l) => l.name === nameOrKey)
+}
+
 export function makeContext(language: string | LanguageDefinition, overrides: Record<string, any> = {}): any {
-  const lang = typeof language === 'string' ? LANGUAGES[language] : language
+  const lang = typeof language === 'string' ? findLanguage(language) : language
   if (!lang) {
     return {
       source: '',
       filename: `file.${language}`,
       language: { name: language, types: {} },
-      tree: null,
       ...overrides,
     }
   }
@@ -26,7 +29,6 @@ export function makeContext(language: string | LanguageDefinition, overrides: Re
     source: '',
     filename: `file.${lang.name}`,
     language: lang,
-    tree: null,
     ...overrides,
   }
 }

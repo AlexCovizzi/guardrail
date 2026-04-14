@@ -1,12 +1,13 @@
 export { RuleConfig } from './config/rule-config.js'
-export type { LanguageDefinition, LanguageName, SemanticTypeName } from './core/languages.js'
+export type { LanguageDefinition, SemanticTypeName } from './core/language.js'
+export type { ProjectContext, SearchResult } from './core/project-index.js'
 export type {
-  FileContext,
   Handler,
   Location,
   Position,
   RegisterFn,
   ReportFn,
+  RuleContext,
   RuleDefinition,
   Selector,
   SyntaxNode,

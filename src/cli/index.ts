@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
-import { globSync } from 'tinyglobby'
 import { Config, ConfigLoadError } from '../config/config.js'
-import { GLOBAL_RULES_DIR } from '../config/paths.js'
+import { globalPaths, localPaths } from '../config/paths.js'
+import { Cache } from '../core/cache.js'
 import { Engine, type Result } from '../core/engine.js'
-import { ParseError } from '../core/parser.js'
-import { registerBuiltins } from '../rules/builtin/index.js'
-import { discoverRules } from '../rules/discovery.js'
+import { ParseError, Parser } from '../core/parser.js'
 import { RuleRegistry } from '../rules/registry.js'
-
-const SUPPORTED_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'kt', 'kts']
 
 const program = new Command()
 
-program.name('guardrail').description('Enforce bounds on AI-generated code').version('1.0.0')
+const { version } = createRequire(import.meta.url)('../../package.json')
+
+program.name('guardrail').description('Enforce bounds on AI-generated code').version(version)
 
 const ruleCommand = program.command('rule').description('Rule management commands')
 
@@ -32,7 +32,7 @@ ruleCommand.addCommand(
       }
 
       const scope = options.scope === 'global' ? 'global' : 'local'
-      const rulesDir = scope === 'global' ? GLOBAL_RULES_DIR : join(process.cwd(), '.guardrail', 'rules')
+      const rulesDir = scope === 'global' ? globalPaths(homedir()).rulesDir : localPaths(process.cwd()).rulesDir
 
       const filePath = join(rulesDir, `${name}.ts`)
       if (existsSync(filePath)) {
@@ -42,9 +42,8 @@ ruleCommand.addCommand(
 
       mkdirSync(rulesDir, { recursive: true })
 
-      const template = `import type { RegisterFn } from '@alexcvzz/guardrail'
-
-export default function(register: RegisterFn) {
+      const template = `
+export default function(register) {
   register('${name}', {
     description: '',
     defaultSeverity: 'error',
@@ -65,20 +64,14 @@ export default function(register: RegisterFn) {
 
 ruleCommand.addCommand(
   new Command('list').description('List all available rules').action(async () => {
-    const registry = new RuleRegistry()
-    const register = registry.register.bind(registry)
-    registerBuiltins(register)
-    await discoverRules(register)
+    const cwd = process.cwd()
+    const registry = await RuleRegistry.load(cwd, homedir())
 
     const entries = registry.getEntries()
-    const builtinIds = new Set<string>()
-
-    registerBuiltins((id: string) => builtinIds.add(id))
 
     for (const { ruleId, definition } of entries) {
-      const source = builtinIds.has(ruleId) ? 'builtin' : 'custom'
       const severity = definition.defaultSeverity ?? 'error'
-      console.log(`${ruleId}  (${source}, ${severity})  ${definition.description}`)
+      console.log(`${ruleId}  (${severity})  ${definition.description}`)
     }
   })
 )
@@ -93,7 +86,16 @@ program
   .action(async (files: string[], options: { json: boolean; quiet: boolean; claudeCode: boolean }) => {
     let engine: Engine
     try {
-      engine = await Engine.create()
+      const cwd = process.cwd()
+      const homeDir = homedir()
+      const registry = await RuleRegistry.load(cwd, homeDir)
+      const config = await Config.load(cwd, homeDir)
+      const parser = await Parser.load()
+      const cache = await Cache.load(cwd, homeDir)
+
+      validateKnownRules(config, registry)
+
+      engine = new Engine(parser, config, cache, registry)
     } catch (err) {
       if (err instanceof ConfigLoadError) {
         process.stderr.write(`guardrail: ${err.message}\n`)
@@ -107,8 +109,7 @@ program
       process.exit(0)
     }
 
-    const expanded = expandInputs(files.length === 0 ? ['.'] : files, engine.getIgnorePatterns())
-    const results = await checkFiles(engine, expanded)
+    const results = await engine.check(files.length === 0 ? ['.'] : files)
     outputResults(results, options)
     process.exit(results.some((r) => !r.passed) ? 1 : 0)
   })
@@ -117,9 +118,10 @@ program
   .command('config')
   .description('Print configuration (global, local, merged)')
   .action(async () => {
-    let raw: Awaited<ReturnType<typeof Config.loadData>>
     try {
-      raw = Config.loadData()
+      const config = await Config.load(process.cwd(), homedir())
+
+      console.log(JSON.stringify(config.toJson(), null, 2))
     } catch (err) {
       if (err instanceof ConfigLoadError) {
         process.stderr.write(`guardrail: ${err.message}\n`)
@@ -127,22 +129,9 @@ program
       }
       throw err
     }
-
-    const localPath = Config.getLocalConfigPath(process.cwd())
-
-    console.log(`# Global: ${Config.getGlobalConfigPath()}`)
-    console.log(stringifyConfig(raw.global))
-    console.log(`# Local: ${localPath ?? '(none found)'}`)
-    console.log(stringifyConfig(raw.local))
-    console.log('# Merged')
-    console.log(stringifyConfig(raw.merged))
   })
 
 program.parse()
-
-function stringifyConfig(data: object): string {
-  return JSON.stringify(data, null, 2)
-}
 
 async function runClaudeCodeHook(engine: Engine): Promise<never> {
   const input = await readStdin()
@@ -163,8 +152,8 @@ async function runClaudeCodeHook(engine: Engine): Promise<never> {
   }
 
   try {
-    const result = await engine.check(filePath, source)
-    if (!result.passed) {
+    const result = await engine.check([filePath])
+    if (result.every((r) => r.passed)) {
       process.stderr.write(`${JSON.stringify(result)}\n`)
       process.exit(2)
     }
@@ -178,31 +167,7 @@ async function runClaudeCodeHook(engine: Engine): Promise<never> {
   process.exit(0)
 }
 
-async function checkFiles(engine: Engine, files: string[]): Promise<Result[]> {
-  const results: Result[] = []
-  for (const file of files) {
-    let source: string
-    try {
-      source = readFileSync(file, 'utf-8')
-    } catch (err) {
-      process.stderr.write(`guardrail: cannot read ${file}: ${(err as Error).message}\n`)
-      continue
-    }
-
-    try {
-      results.push(await engine.check(file, source))
-    } catch (err) {
-      if (err instanceof ParseError) {
-        process.stderr.write(`guardrail: ${err.message}\n`)
-        continue
-      }
-      throw err
-    }
-  }
-  return results
-}
-
-function outputResults(results: Result[], options: { json: boolean; quiet: boolean; claudeCode: boolean }): void {
+function outputResults(results: Result[], options: { json: boolean; quiet: boolean }): void {
   if (options.json) {
     console.log(JSON.stringify(results, null, 2))
     return
@@ -221,22 +186,6 @@ function outputResults(results: Result[], options: { json: boolean; quiet: boole
   console.log(`\n${results.length} file(s), ${errors} error(s), ${warnings} warning(s)`)
 }
 
-function expandInputs(inputs: string[], ignorePatterns: string[]): string[] {
-  const result: string[] = []
-  for (const input of inputs) {
-    if (existsSync(input) && lstatSync(input).isDirectory()) {
-      const pattern = `${input}/**/*.{${SUPPORTED_EXTENSIONS.join(',')}}`
-      result.push(...globSync(pattern, { onlyFiles: true, ignore: ignorePatterns }))
-    } else {
-      const matches = globSync(input, { onlyFiles: true, ignore: ignorePatterns })
-      if (matches.length > 0) {
-        result.push(...matches)
-      }
-    }
-  }
-  return result.filter((f) => existsSync(f))
-}
-
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     let data = ''
@@ -245,4 +194,19 @@ function readStdin(): Promise<string> {
     process.stdin.on('end', () => resolve(data))
     if (process.stdin.isTTY) resolve('')
   })
+}
+
+function validateKnownRules(config: Config, ruleRegistry: RuleRegistry): void {
+  const knownRuleIds = ruleRegistry.getRuleIds()
+  const data = config.toJson()
+  const configured = new Set<string>()
+  for (const id of Object.keys(data.rules ?? {})) configured.add(id)
+  for (const override of Object.values(data.overrides ?? {})) {
+    for (const id of Object.keys(override.rules ?? {})) configured.add(id)
+  }
+  for (const id of configured) {
+    if (!knownRuleIds.has(id)) {
+      process.stderr.write(`guardrail: unknown rule "${id}"\n`)
+    }
+  }
 }
