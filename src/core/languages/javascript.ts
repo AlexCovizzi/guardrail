@@ -1,0 +1,35 @@
+import type { LanguageDefinition } from './index.js'
+
+export const JAVASCRIPT: LanguageDefinition = {
+  name: 'javascript',
+  extensions: ['js'],
+  kinds: {
+    function: [
+      { type: 'function_declaration' },
+      { type: 'function_expression' },
+      { type: 'arrow_function' },
+      { type: 'method_definition' },
+    ],
+    class: [{ type: 'class_declaration' }, { type: 'class' }],
+    import: [{ type: 'import_statement' }],
+    export: [{ type: 'export_statement' }],
+    interface: [],
+    type: [],
+    enum: [],
+    namespace: [],
+    constant: [{ type: 'lexical_declaration', hasChild: 'const' }],
+    variable: [{ type: 'variable_declaration' }, { type: 'lexical_declaration', lacksChild: 'const' }],
+    branch: [
+      { type: 'if_statement' },
+      { type: 'for_statement' },
+      { type: 'for_in_statement' },
+      { type: 'for_of_statement' },
+      { type: 'while_statement' },
+      { type: 'do_statement' },
+      { type: 'switch_case' },
+      { type: 'catch_clause' },
+      { type: 'ternary_expression' },
+    ],
+    parameters: [{ type: 'formal_parameters' }],
+  },
+}

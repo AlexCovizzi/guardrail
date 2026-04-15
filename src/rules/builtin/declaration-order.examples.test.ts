@@ -11,7 +11,7 @@ function getRule(config: Record<string, any> = {}) {
   const builder = new RuleConfig(ruleId, config)
   return {
     description: definition.description,
-    severity: ('error' as const),
+    severity: 'error' as const,
     visitors: definition.create(builder),
   }
 }
@@ -61,15 +61,15 @@ function bar() {}
       expect(violations[0]).toContain('function should come before class')
     })
 
-    it('valid: exports classified by inner kind', async () => {
+    it('valid: exports classified as export kind', async () => {
       const rule = getRule()
       const code = `import foo from 'foo'
-const X = 1
 export const Y = 2
-function bar() {}
 export function baz() {}
-class Qux {}
 export class Quux {}
+const X = 1
+function bar() {}
+class Qux {}
 `
       expect(await collectViolations(rule, code, 'javascript')).toEqual([])
     })
@@ -114,7 +114,18 @@ function bar() {}
 
     it('valid: custom order — class first', async () => {
       const rule = getRule({
-        order: ['class', 'function', 'variable', 'constant', 'import', 'interface', 'type', 'enum', 'namespace'],
+        order: [
+          'class',
+          'function',
+          'variable',
+          'constant',
+          'import',
+          'export',
+          'interface',
+          'type',
+          'enum',
+          'namespace',
+        ],
       })
       const code = `class Baz {}
 function bar() {}
@@ -125,7 +136,18 @@ const X = 1
 
     it('invalid: violates custom order', async () => {
       const rule = getRule({
-        order: ['class', 'function', 'variable', 'constant', 'import', 'interface', 'type', 'enum', 'namespace'],
+        order: [
+          'class',
+          'function',
+          'variable',
+          'constant',
+          'import',
+          'export',
+          'interface',
+          'type',
+          'enum',
+          'namespace',
+        ],
       })
       const code = `function bar() {}
 class Baz {}
@@ -163,15 +185,15 @@ interface IFoo {}
       expect(violations[0]).toContain('interface should come before function')
     })
 
-    it('valid: export statement unwrapping', async () => {
+    it('valid: export statements classified as export kind', async () => {
       const rule = getRule()
       const code = `import foo from 'foo'
-const X = 1
 export const Y = 2
-function bar() {}
 export function baz() {}
-class Baz {}
 export class Qux {}
+const X = 1
+function bar() {}
+class Baz {}
 `
       expect(await collectViolations(rule, code, 'typescript')).toEqual([])
     })
@@ -332,7 +354,7 @@ class Bar {}
       expect(await collectViolations(rule, code, 'kotlin')).toEqual([])
     })
 
-    it('valid: object declaration classified as enum', async () => {
+    it('valid: object declaration classified as class', async () => {
       const rule = getRule()
       const code = `import java.util.List
 object Obj {}

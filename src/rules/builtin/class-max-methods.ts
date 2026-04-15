@@ -1,9 +1,8 @@
-import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
 
-function countMethods(node: SyntaxNode, functionTypes: Set<string>, classTypes: Set<string>): number {
+function countMethods(node: Node): number {
   let count = 0
-  const stack: SyntaxNode[] = []
-
+  const stack: Node[] = []
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child) stack.push(child)
@@ -11,16 +10,11 @@ function countMethods(node: SyntaxNode, functionTypes: Set<string>, classTypes: 
 
   while (stack.length > 0) {
     const current = stack.pop()!
-
-    if (functionTypes.has(current.type)) {
+    if (current.is('function')) {
       count++
-      continue // don't recurse into function bodies
+      continue
     }
-
-    if (classTypes.has(current.type)) {
-      continue // don't recurse into nested classes
-    }
-
+    if (current.is('class')) continue
     for (let i = 0; i < current.childCount; i++) {
       const child = current.child(i)
       if (child) stack.push(child)
@@ -37,10 +31,8 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 20, min: 1 })
 
       return {
-        class(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
-          const functionTypes = new Set(ctx.language.types.function)
-          const classTypes = new Set(ctx.language.types.class)
-          const count = countMethods(node, functionTypes, classTypes)
+        class(node: Node, ctx: RuleContext, report: ReportFn): void {
+          const count = countMethods(node)
           if (count <= max) return
           report({
             message: `Class has ${count} methods (max: ${max})`,

@@ -1,14 +1,4 @@
-import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
-
-function countParams(node: SyntaxNode, paramNodeType: string): number {
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i)
-    if (child?.type === paramNodeType) {
-      return child.namedChildCount ?? 0
-    }
-  }
-  return 0
-}
+import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
 
 export default function (register: RegisterFn) {
   register('function-max-params', {
@@ -17,14 +7,18 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 4, min: 0 })
 
       return {
-        function(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
-          const paramNodeType = ctx.language.types.parameters[0]
-          if (!paramNodeType) return
-
-          const count = countParams(node, paramNodeType)
-          if (count <= max) return
+        function(node: Node, ctx: RuleContext, report: ReportFn): void {
+          let paramCount = 0
+          for (let i = 0; i < node.childCount; i++) {
+            const child = node.child(i)
+            if (child && child.is('parameters')) {
+              paramCount = child.namedChildCount
+              break
+            }
+          }
+          if (paramCount <= max) return
           report({
-            message: `Function has ${count} parameters (max: ${max})`,
+            message: `Function has ${paramCount} parameters (max: ${max})`,
           })
         },
       }

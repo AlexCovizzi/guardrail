@@ -1,12 +1,10 @@
-import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
 
-function measureDepth(node: SyntaxNode, branchTypes: Set<string>, current: number): number {
+function measureDepth(node: Node, current: number): number {
   let maxChild = current
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)!
-    const depth = branchTypes.has(child.type)
-      ? measureDepth(child, branchTypes, current + 1)
-      : measureDepth(child, branchTypes, current)
+    const depth = child.is('branch') ? measureDepth(child, current + 1) : measureDepth(child, current)
     if (depth > maxChild) maxChild = depth
   }
   return maxChild
@@ -19,9 +17,8 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 4, min: 1 })
 
       return {
-        function(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
-          const branchTypes = new Set(ctx.language.types.branch)
-          const depth = measureDepth(node, branchTypes, 0)
+        function(node: Node, ctx: RuleContext, report: ReportFn): void {
+          const depth = measureDepth(node, 0)
           if (depth <= max) return
           report({
             message: `Function has nesting depth of ${depth} (max: ${max})`,

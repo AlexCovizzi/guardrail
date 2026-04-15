@@ -19,7 +19,7 @@ function makeTree(...children: any[]): any {
     childCount: children.length,
     child: (i: number) => children[i] ?? null,
   })
-  return { walk: () => ({ currentNode: root }) }
+  return { rootNode: root, walk: () => ({ currentNode: root }) }
 }
 
 function makeNamedNode(type: string, name: string): any {

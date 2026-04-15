@@ -11,13 +11,12 @@ function getRule(config: Record<string, any> = {}) {
   const builder = new RuleConfig(ruleId, config)
   return {
     description: definition.description,
-    severity: ('error' as const),
+    severity: 'error' as const,
     visitors: definition.create(builder),
   }
 }
 
 describe('class-member-ordering examples', () => {
-
   it('has correct description', () => {
     expect(getRule().description).toBe('Class members should be ordered consistently')
   })

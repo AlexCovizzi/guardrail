@@ -1,8 +1,9 @@
-import type { SyntaxNode } from '../rules/rule.js'
-import { detectLanguage, type LanguageDefinition, type SemanticTypeName } from './language.js'
+import { detectLanguage, type LanguageDefinition, nodeTypesFor } from './language.js'
+import type { SemanticKind } from './languages/types.js'
+import { Node } from './node.js'
 
 export interface SearchResult {
-  node: SyntaxNode
+  node: Node
   context: {
     source: string
     filename: string
@@ -11,31 +12,16 @@ export interface SearchResult {
 }
 
 export interface ProjectContext {
-  search(name: string | RegExp, kinds?: SemanticTypeName[]): SearchResult[]
+  search(name: string | RegExp, kinds?: SemanticKind[]): SearchResult[]
 }
 
 export type IndexedKind = 'function' | 'class' | 'import'
 
 const INDEXED_KINDS: IndexedKind[] = ['function', 'class', 'import']
 
-function extractName(node: SyntaxNode): string | null {
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i)
-    if (child && child.isNamed) return child.text
-  }
-  return null
-}
-
-function findKindForType(nodeType: string, language: LanguageDefinition): IndexedKind | null {
-  for (const kind of INDEXED_KINDS) {
-    if (language.types[kind].includes(nodeType)) return kind
-  }
-  return null
-}
-
 type Position = { row: number; column: number }
 
-type IndexEntry = {
+interface InternalEntry {
   filename: string
   nodeType: string
   name: string
@@ -43,14 +29,27 @@ type IndexEntry = {
   startPosition: Position
   endPosition: Position
   isNamed: boolean
+  language: LanguageDefinition
+  source: string
 }
 
-export interface SerializedIndex {
-  entries: IndexEntry[]
+function extractName(rawNode: any): string | null {
+  for (let i = 0; i < rawNode.childCount; i++) {
+    const child = rawNode.child(i)
+    if (child && child.isNamed) return child.text
+  }
+  return null
 }
 
-function makeShallowNode(entry: IndexEntry): SyntaxNode {
-  return {
+function findKindForType(nodeType: string, language: LanguageDefinition): IndexedKind | null {
+  for (const kind of INDEXED_KINDS) {
+    if (nodeTypesFor(language, kind as SemanticKind).includes(nodeType)) return kind
+  }
+  return null
+}
+
+function makeShallowNode(entry: InternalEntry): Node {
+  const mockRaw = {
     type: entry.nodeType,
     text: entry.text,
     startPosition: entry.startPosition,
@@ -62,14 +61,24 @@ function makeShallowNode(entry: IndexEntry): SyntaxNode {
     namedChildCount: 0,
     child: () => null,
     namedChild: () => null,
-    parent: null,
   }
+  return new Node(mockRaw as any, entry.language)
 }
 
-type SearchContext = SearchResult['context']
+export interface SerializedIndex {
+  entries: Array<{
+    filename: string
+    nodeType: string
+    name: string
+    text: string
+    startPosition: Position
+    endPosition: Position
+    isNamed: boolean
+  }>
+}
 
 export class ProjectIndex implements ProjectContext {
-  private byKind = new Map<string, Map<string, SearchResult[]>>()
+  private byKind = new Map<string, Map<string, InternalEntry[]>>()
 
   constructor() {
     for (const kind of INDEXED_KINDS) {
@@ -78,60 +87,66 @@ export class ProjectIndex implements ProjectContext {
   }
 
   addFile(filename: string, source: string, language: LanguageDefinition, tree: any): void {
-    const context = this.buildContext(filename, source, language)
-    const root = tree.walk().currentNode
-
+    const root = tree.rootNode
     for (let i = 0; i < root.childCount; i++) {
-      const child = root.child(i)!
+      const child = root.child(i)
+      if (!child) continue
       const kind = findKindForType(child.type, language)
       if (kind === null) continue
-
       const name = extractName(child)
       if (name === null) continue
-
+      const entry: InternalEntry = {
+        filename,
+        nodeType: child.type,
+        name,
+        text: child.text,
+        startPosition: child.startPosition,
+        endPosition: child.endPosition,
+        isNamed: child.isNamed,
+        language,
+        source,
+      }
       const kindMap = this.byKind.get(kind)!
       if (!kindMap.has(name)) kindMap.set(name, [])
-      kindMap.get(name)!.push({ node: child, context })
+      kindMap.get(name)!.push(entry)
     }
   }
 
   removeFile(filename: string): void {
     for (const kindMap of this.byKind.values()) {
       for (const [name, entries] of kindMap) {
-        const filtered = entries.filter((e) => e.context.filename !== filename)
+        const filtered = entries.filter((e) => e.filename !== filename)
         if (filtered.length === 0) kindMap.delete(name)
         else kindMap.set(name, filtered)
       }
     }
   }
 
-  search(name: string | RegExp, kinds?: SemanticTypeName[]): SearchResult[] {
+  search(name: string | RegExp, kinds?: SemanticKind[]): SearchResult[] {
     const targetKinds = kinds?.length ? (kinds as IndexedKind[]) : INDEXED_KINDS
     const results: SearchResult[] = []
-
     for (const kind of targetKinds) {
       const kindMap = this.byKind.get(kind)
       if (!kindMap) continue
       results.push(...this.matchEntries(kindMap, name))
     }
-
     return results
   }
 
   serialize(): SerializedIndex {
-    const entries: IndexEntry[] = []
+    const entries: SerializedIndex['entries'] = []
     for (const kind of INDEXED_KINDS) {
       const kindMap = this.byKind.get(kind)!
-      for (const [name, searchResults] of kindMap) {
-        for (const { context, node } of searchResults) {
+      for (const [, entryList] of kindMap) {
+        for (const entry of entryList) {
           entries.push({
-            filename: context.filename,
-            nodeType: node.type,
-            name,
-            text: node.text,
-            startPosition: node.startPosition,
-            endPosition: node.endPosition,
-            isNamed: node.isNamed,
+            filename: entry.filename,
+            nodeType: entry.nodeType,
+            name: entry.name,
+            text: entry.text,
+            startPosition: entry.startPosition,
+            endPosition: entry.endPosition,
+            isNamed: entry.isNamed,
           })
         }
       }
@@ -141,36 +156,36 @@ export class ProjectIndex implements ProjectContext {
 
   static fromSerialized(data: SerializedIndex): ProjectIndex {
     const index = new ProjectIndex()
-    for (const entry of data.entries) {
-      const language = detectLanguage(entry.filename)
+    for (const raw of data.entries) {
+      const language = detectLanguage(raw.filename)
       if (!language) continue
-      const kind = findKindForType(entry.nodeType, language)
+      const kind = findKindForType(raw.nodeType, language)
       if (kind === null) continue
-      const node = makeShallowNode(entry)
-      const context: SearchContext = { source: '', filename: entry.filename, language }
+      const entry: InternalEntry = { ...raw, language, source: '' }
       const kindMap = index.byKind.get(kind)!
       if (!kindMap.has(entry.name)) kindMap.set(entry.name, [])
-      kindMap.get(entry.name)!.push({ node, context })
+      kindMap.get(entry.name)!.push(entry)
     }
     return index
   }
 
-  private buildContext(filename: string, source: string, language: LanguageDefinition): SearchContext {
-    return { source, filename, language }
-  }
+  private matchEntries(kindMap: Map<string, InternalEntry[]>, name: string | RegExp): SearchResult[] {
+    const toResult = (entry: InternalEntry): SearchResult => ({
+      node: makeShallowNode(entry),
+      context: { source: entry.source, filename: entry.filename, language: entry.language },
+    })
 
-  private matchEntries(kindMap: Map<string, SearchResult[]>, name: string | RegExp): SearchResult[] {
     if (name === '') {
       const results: SearchResult[] = []
-      for (const entries of kindMap.values()) results.push(...entries)
+      for (const entries of kindMap.values()) results.push(...entries.map(toResult))
       return results
     } else if (typeof name === 'string') {
       const entries = kindMap.get(name)
-      return entries ? [...entries] : []
+      return entries ? entries.map(toResult) : []
     } else {
       const results: SearchResult[] = []
       for (const [entryName, entries] of kindMap) {
-        if (name.test(entryName)) results.push(...entries)
+        if (name.test(entryName)) results.push(...entries.map(toResult))
       }
       return results
     }

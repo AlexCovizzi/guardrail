@@ -1,30 +1,18 @@
 import type { RuleConfig } from '../config/rule-config.js'
-import type { LanguageDefinition, SemanticTypeName } from '../core/language.js'
+import type { LanguageDefinition } from '../core/language.js'
+import type { SemanticKind } from '../core/languages/types.js'
 import type { ProjectContext } from '../core/project-index.js'
+import { Node } from '../core/node.js'
+import { Tree } from '../core/tree.js'
+import { TreeCursor } from '../core/tree-cursor.js'
+
+export { Node, Tree, TreeCursor }
 
 export interface RuleContext {
   source: string
   filename: string
   language: LanguageDefinition
   project: ProjectContext
-}
-
-export interface SyntaxNode {
-  type: string
-  text: string
-  startPosition: { row: number; column: number }
-  endPosition: { row: number; column: number }
-  startIndex: number
-  endIndex: number
-  childCount: number
-  namedChildCount: number
-
-  child(index: number): SyntaxNode | null
-
-  namedChild(index: number): SyntaxNode | null
-
-  parent: SyntaxNode | null
-  isNamed: boolean
 }
 
 export interface Position {
@@ -39,9 +27,9 @@ export interface Location {
 
 export type ReportFn = (violation: { message: string }) => void
 
-export type Selector = SemanticTypeName | `${SemanticTypeName}Exit` | `_${string}` | `_${string}Exit`
+export type Selector = SemanticKind | `${SemanticKind}Exit` | `_${string}` | `_${string}Exit`
 
-export type Handler = (node: SyntaxNode, ctx: RuleContext, report: ReportFn) => void
+export type Handler = (node: Node, ctx: RuleContext, report: ReportFn) => void
 
 export type RegisterFn = (id: string, definition: RuleDefinition) => void
 

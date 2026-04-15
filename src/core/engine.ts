@@ -4,9 +4,11 @@ import type { RuleRegistry } from '../rules/registry.js'
 import type { Handler, Location, ReportFn, Rule, RuleContext } from '../rules/rule.js'
 import type { Cache } from './cache.js'
 import { expandInputs } from './files.js'
-import { detectLanguage, type LanguageDefinition, type SemanticTypeName } from './language.js'
+import { detectLanguage, type LanguageDefinition, nodeTypesFor } from './language.js'
+import type { SemanticKind } from './languages/types.js'
 import { ParseError, type Parser } from './parser.js'
 import type { ProjectIndex } from './project-index.js'
+import { Node } from './node.js'
 
 export interface Violation {
   ruleId: string
@@ -39,8 +41,8 @@ export function resolveSelector(
   if (k.startsWith('_')) {
     return [{ nodeType: camelToSnake(k.slice(1)), isExit }]
   }
-  if (k in language.types) {
-    return (language.types[k as SemanticTypeName] as readonly string[]).map((nodeType) => ({ nodeType, isExit }))
+  if (k in language.kinds) {
+    return nodeTypesFor(language, k as SemanticKind).map((nodeType) => ({ nodeType, isExit }))
   }
   return []
 }
@@ -145,14 +147,16 @@ export class Engine {
     const violations: Violation[] = []
     const dispatchMap = buildDispatchMap(rules, language)
 
-    const stack: Array<[any, boolean]> = [[tree.walk().currentNode, false]]
+    const stack: Array<[any, boolean]> = []
+    stack.push([tree.rootNode, false])
 
     while (stack.length > 0) {
-      const [node, isExit] = stack.pop()!
-      const key = isExit ? `${node.type}:exit` : node.type
+      const [rawNode, isExit] = stack.pop()!
+      const key = isExit ? `${rawNode.type}:exit` : rawNode.type
       const entries = dispatchMap.get(key)
 
       if (entries) {
+        const node = new Node(rawNode, language)
         for (const { rule, fn } of entries) {
           const report: ReportFn = ({ message }) => {
             violations.push({
@@ -160,8 +164,8 @@ export class Engine {
               message,
               description: rule.description,
               location: {
-                start: { line: node.startPosition.row + 1, column: node.startPosition.column },
-                end: { line: node.endPosition.row + 1, column: node.endPosition.column },
+                start: { line: rawNode.startPosition.row + 1, column: rawNode.startPosition.column },
+                end: { line: rawNode.endPosition.row + 1, column: rawNode.endPosition.column },
               },
               severity: rule.severity,
             })
@@ -171,9 +175,10 @@ export class Engine {
       }
 
       if (!isExit) {
-        stack.push([node, true])
-        for (let i = node.childCount - 1; i >= 0; i--) {
-          stack.push([node.child(i)!, false])
+        stack.push([rawNode, true])
+        for (let i = rawNode.childCount - 1; i >= 0; i--) {
+          const child = rawNode.child(i)
+          if (child) stack.push([child, false])
         }
       }
     }

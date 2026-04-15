@@ -1,11 +1,12 @@
 import { resolveSelector } from '../core/engine.js'
 import type { LanguageDefinition } from '../core/language.js'
 import { Parser } from '../core/parser.js'
-import type { Handler, Rule, RuleContext, SyntaxNode } from '../rules/rule.js'
+import { Node } from '../core/node.js'
+import type { Handler, Rule, RuleContext } from '../rules/rule.js'
 import { findLanguage } from './fixtures.js'
 
 function collectNodeViolations(
-  node: SyntaxNode,
+  node: Node,
   rule: Omit<Rule, 'id'>,
   langDef: LanguageDefinition,
   context: RuleContext
@@ -50,13 +51,17 @@ export async function collectViolations(
     language: langDef,
     project: { search: () => [] },
   }
-  const stack: any[] = [tree.rootNode]
+  const root = new Node(tree.rootNode, langDef)
+  const stack: Node[] = [root]
   const messages: string[] = []
 
   while (stack.length > 0) {
     const node = stack.pop()!
-    messages.push(...collectNodeViolations(node as SyntaxNode, rule, langDef, context))
-    for (let i = 0; i < node.childCount; i++) stack.push(node.child(i)!)
+    messages.push(...collectNodeViolations(node, rule, langDef, context))
+    for (let i = node.childCount - 1; i >= 0; i--) {
+      const child = node.child(i)
+      if (child) stack.push(child)
+    }
   }
 
   return messages

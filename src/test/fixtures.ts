@@ -21,7 +21,7 @@ export function makeContext(language: string | LanguageDefinition, overrides: Re
     return {
       source: '',
       filename: `file.${language}`,
-      language: { name: language, types: {} },
+      language: { name: language, kinds: {} },
       ...overrides,
     }
   }

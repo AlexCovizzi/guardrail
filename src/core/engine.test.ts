@@ -36,7 +36,7 @@ vi.mock('./parser.js', () => ({
 }))
 
 function makeTree(root: any): any {
-  return { walk: () => ({ currentNode: root }) }
+  return { rootNode: root, walk: () => ({ currentNode: root }) }
 }
 
 function makeRule(overrides: Partial<Rule> = {}): Rule {
@@ -159,8 +159,8 @@ describe('Engine.check', () => {
     ])
     const engine = makeEngineWithRules([])
     await engine.check(['file.ts'])
-    expect(visited).toContain(root)
-    expect(visited).toContain(child)
+    expect(visited.some((n) => n.type === root.type)).toBe(true)
+    expect(visited.some((n) => n.type === child.type)).toBe(true)
   })
 
   it('expands function semantic key for the current language', async () => {
@@ -179,11 +179,11 @@ describe('Engine.check', () => {
     ])
     const engine = makeEngineWithRules([])
     await engine.check(['file.ts'])
-    expect(visited).toContain(fnNode)
+    expect(visited.some((n) => n.type === fnNode.type)).toBe(true)
   })
 
   it('does not fire function for languages missing the type', async () => {
-    mockDetectLanguage.mockReturnValue({ name: 'ruby', types: {} } as any)
+    mockDetectLanguage.mockReturnValue({ name: 'ruby', kinds: {} } as any)
     mockParserParse.mockResolvedValue(makeTree(makeNode('function_declaration')))
     const visited: any[] = []
     mockCreateRules.mockReturnValue([])

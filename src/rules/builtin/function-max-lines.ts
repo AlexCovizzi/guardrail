@@ -1,4 +1,4 @@
-import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
 
 export default function (register: RegisterFn) {
   register('function-max-lines', {
@@ -7,7 +7,7 @@ export default function (register: RegisterFn) {
       const max = config.number('max', { default: 60, min: 1 })
 
       return {
-        function(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
+        function(node: Node, ctx: RuleContext, report: ReportFn): void {
           const lines = node.endPosition.row - node.startPosition.row + 1
           if (lines <= max) return
           report({

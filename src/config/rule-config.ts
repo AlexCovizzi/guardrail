@@ -57,10 +57,7 @@ export class RuleConfig {
     const validSet = new Set<string>(opts.values as readonly string[])
     for (const item of val) {
       if (typeof item !== 'string' || !validSet.has(item))
-        throw new ConfigValidationError(
-          this.ruleId,
-          `option "${key}" must contain only valid values, got "${item}"`
-        )
+        throw new ConfigValidationError(this.ruleId, `option "${key}" must contain only valid values, got "${item}"`)
     }
     return val as T[]
   }

@@ -1,4 +1,4 @@
-import type { RegisterFn, ReportFn, RuleContext, SyntaxNode } from '../rule.js'
+import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
 
 type Kind = 'field' | 'constructor' | 'method'
 type Staticness = 'static' | 'instance'
@@ -34,7 +34,7 @@ const PRECEDENCE_WEIGHTS: Record<OrderPreset, Array<{ dim: 'kind' | 'staticness'
   ],
 }
 
-function getAccessor(node: SyntaxNode): Accessor {
+function getAccessor(node: Node): Accessor {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (!child) continue
@@ -47,7 +47,7 @@ function getAccessor(node: SyntaxNode): Accessor {
   return 'public'
 }
 
-function isStatic(node: SyntaxNode): boolean {
+function isStatic(node: Node): boolean {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child && child.type === 'static') return true
@@ -55,7 +55,7 @@ function isStatic(node: SyntaxNode): boolean {
   return false
 }
 
-function getName(node: SyntaxNode): string {
+function getName(node: Node): string {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child && (child.type === 'property_identifier' || child.type === 'private_property_identifier')) {
@@ -65,7 +65,7 @@ function getName(node: SyntaxNode): string {
   return node.text
 }
 
-function classifyFieldLike(node: SyntaxNode): MemberClassification {
+function classifyFieldLike(node: Node): MemberClassification {
   return {
     kind: 'field',
     accessor: getAccessor(node),
@@ -74,7 +74,7 @@ function classifyFieldLike(node: SyntaxNode): MemberClassification {
   }
 }
 
-function classifyMethodLike(node: SyntaxNode, forceInstance: boolean): MemberClassification {
+function classifyMethodLike(node: Node, forceInstance: boolean): MemberClassification {
   const name = getName(node)
   if (name === 'constructor') {
     return { kind: 'constructor', accessor: 'public', staticness: 'instance', name }
@@ -87,7 +87,7 @@ function classifyMethodLike(node: SyntaxNode, forceInstance: boolean): MemberCla
   }
 }
 
-function classifyMember(node: SyntaxNode): MemberClassification | null {
+function classifyMember(node: Node): MemberClassification | null {
   const t = node.type
 
   if (t === 'public_field_definition' || t === 'field_definition') return classifyFieldLike(node)
@@ -122,8 +122,8 @@ function describeMember(classification: MemberClassification): string {
   return parts.join(' ')
 }
 
-function classifyMembersFromClass(node: SyntaxNode, preset: OrderPreset) {
-  let body: SyntaxNode | null = null
+function classifyMembersFromClass(node: Node, preset: OrderPreset) {
+  let body: Node | null = null
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child && child.type === 'class_body') {
@@ -133,7 +133,7 @@ function classifyMembersFromClass(node: SyntaxNode, preset: OrderPreset) {
   }
   if (!body) return []
 
-  const members: Array<{ classification: MemberClassification; node: SyntaxNode; rank: number }> = []
+  const members: Array<{ classification: MemberClassification; node: Node; rank: number }> = []
   for (let i = 0; i < body.namedChildCount; i++) {
     const child = body.namedChild(i)
     if (!child) continue
@@ -154,7 +154,7 @@ export default function registerClassMemberOrdering(register: RegisterFn) {
       }) as OrderPreset
 
       return {
-        class(node: SyntaxNode, ctx: RuleContext, report: ReportFn): void {
+        class(node: Node, ctx: RuleContext, report: ReportFn): void {
           const members = classifyMembersFromClass(node, order)
 
           for (let i = 1; i < members.length; i++) {

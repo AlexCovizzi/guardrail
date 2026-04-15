@@ -10,7 +10,7 @@ function makeTree(...children: any[]): any {
     childCount: children.length,
     child: (i: number) => children[i] ?? null,
   })
-  return { walk: () => ({ currentNode: root }) }
+  return { rootNode: root, walk: () => ({ currentNode: root }) }
 }
 
 function makeNamedNode(type: string, name: string): any {
@@ -26,7 +26,7 @@ describe('ProjectIndex addFile', () => {
 
     const results = index.search('myFunc')
     expect(results).toHaveLength(1)
-    expect(results[0].node).toBe(fnNode)
+    expect(results[0].node.type).toBe('function_declaration')
     expect(results[0].context.filename).toBe('file.ts')
   })
 
