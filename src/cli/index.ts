@@ -10,6 +10,8 @@ import { globalPaths, localPaths } from '../config/paths.js'
 import { Cache } from '../core/cache.js'
 import { Engine, type Result } from '../core/engine.js'
 import { ParseError, Parser } from '../core/parser.js'
+import { buildReport, formatReport } from '../core/perf-report.js'
+import { Timer } from '../core/timer.js'
 import { RuleRegistry } from '../rules/registry.js'
 
 const program = new Command()
@@ -82,20 +84,36 @@ program
   .description('Check files against rules')
   .option('--json', 'Output results as JSON')
   .option('--quiet', 'Only show files with violations')
+  .option('--timing', 'Print timing/performance breakdown to stderr')
   .option('--claude-code', 'Claude Code hook mode: reads stdin JSON, outputs violations to stderr, exits 2 on failure')
-  .action(async (files: string[], options: { json: boolean; quiet: boolean; claudeCode: boolean }) => {
+  .action(async (files: string[], options: { json: boolean; quiet: boolean; timing: boolean; claudeCode: boolean }) => {
     let engine: Engine
+    let timer: Timer | undefined
     try {
       const cwd = process.cwd()
       const homeDir = homedir()
-      const registry = await RuleRegistry.load(cwd, homeDir)
-      const config = await Config.load(cwd, homeDir)
-      const parser = await Parser.load()
-      const cache = await Cache.load(cwd, homeDir)
 
-      validateKnownRules(config, registry)
+      if (options.timing) {
+        timer = new Timer()
+        const registry = await timer.measureAsync('registry.load', () => RuleRegistry.load(cwd, homeDir))
+        const config = await timer.measureAsync('config.load', () => Config.load(cwd, homeDir))
+        const parser = await timer.measureAsync('parser.load', () => Parser.load())
+        const cache = await timer.measureAsync('cache.load', () => Cache.load(cwd, homeDir))
 
-      engine = new Engine(parser, config, cache, registry)
+        validateKnownRules(config, registry)
+
+        engine = new Engine(parser, config, cache, registry)
+        engine.setTimer(timer)
+      } else {
+        const registry = await RuleRegistry.load(cwd, homeDir)
+        const config = await Config.load(cwd, homeDir)
+        const parser = await Parser.load()
+        const cache = await Cache.load(cwd, homeDir)
+
+        validateKnownRules(config, registry)
+
+        engine = new Engine(parser, config, cache, registry)
+      }
     } catch (err) {
       if (err instanceof ConfigLoadError) {
         process.stderr.write(`guardrail: ${err.message}\n`)
@@ -111,6 +129,12 @@ program
 
     const results = await engine.check(files.length === 0 ? ['.'] : files)
     outputResults(results, options)
+
+    if (options.timing && timer) {
+      const report = buildReport(timer.getMetrics())
+      process.stderr.write(`\n${formatReport(report)}\n`)
+    }
+
     process.exit(results.some((r) => !r.passed) ? 1 : 0)
   })
 
@@ -143,9 +167,9 @@ async function runClaudeCodeHook(engine: Engine): Promise<never> {
   }
   if (!filePath) process.exit(0)
 
-  let source: string
+  let _source: string
   try {
-    source = readFileSync(filePath, 'utf-8')
+    _source = readFileSync(filePath, 'utf-8')
   } catch (err) {
     process.stderr.write(`guardrail: cannot read ${filePath}: ${(err as Error).message}\n`)
     process.exit(2)
