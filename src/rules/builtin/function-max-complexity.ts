@@ -1,18 +1,4 @@
-import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
-
-function cyclomaticComplexity(node: Node): number {
-  let complexity = 1
-  const stack: Node[] = [node]
-  while (stack.length > 0) {
-    const current = stack.pop()!
-    if (current.is('branch')) complexity++
-    for (let i = 0; i < current.childCount; i++) {
-      const child = current.child(i)
-      if (child) stack.push(child)
-    }
-  }
-  return complexity
-}
+import type { Node, RegisterFn, ReportFn, RuleContext } from '../rule.js'
 
 export default function (register: RegisterFn) {
   register('function-max-complexity', {
@@ -20,13 +6,24 @@ export default function (register: RegisterFn) {
     create(config) {
       const max = config.number('max', { default: 10, min: 1 })
 
+      const stack: Array<{ complexity: number }> = []
+
       return {
-        function(node: Node, ctx: RuleContext, report: ReportFn): void {
-          const complexity = cyclomaticComplexity(node)
-          if (complexity <= max) return
-          report({
-            message: `Function has cyclomatic complexity of ${complexity} (max: ${max})`,
-          })
+        function(_node: Node, _ctx: RuleContext, _report: ReportFn): void {
+          stack.push({ complexity: 1 })
+        },
+        branch(_node: Node, _ctx: RuleContext, _report: ReportFn): void {
+          if (stack.length > 0) {
+            stack[stack.length - 1].complexity++
+          }
+        },
+        functionExit(_node: Node, _ctx: RuleContext, report: ReportFn): void {
+          const entry = stack.pop()
+          if (entry && entry.complexity > max) {
+            report({
+              message: `Function has cyclomatic complexity of ${entry.complexity} (max: ${max})`,
+            })
+          }
         },
       }
     },
