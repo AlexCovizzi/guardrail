@@ -50,6 +50,21 @@ export class RuleConfig {
     return val as T[number]
   }
 
+  array<T extends string>(key: string, opts: { values: readonly T[]; default: readonly T[] }): T[] {
+    const val = this.raw[key] ?? opts.default
+    if (!Array.isArray(val))
+      throw new ConfigValidationError(this.ruleId, `option "${key}" must be an array, got ${typeof val}`)
+    const validSet = new Set<string>(opts.values as readonly string[])
+    for (const item of val) {
+      if (typeof item !== 'string' || !validSet.has(item))
+        throw new ConfigValidationError(
+          this.ruleId,
+          `option "${key}" must contain only valid values, got "${item}"`
+        )
+    }
+    return val as T[]
+  }
+
   isEnabled(): boolean {
     if (this.raw.enabled !== undefined) return this.raw.enabled as boolean
     return !(this.raw.disabled as boolean)

@@ -5,6 +5,12 @@ const JAVASCRIPT: LanguageDefinition = {
     function: ['function_declaration', 'function_expression', 'arrow_function', 'method_definition'],
     class: ['class_declaration', 'class'],
     import: ['import_statement'],
+    interface: [],
+    type: [],
+    enum: [],
+    namespace: [],
+    constant: [],
+    variable: ['variable_declaration'],
     branch: [
       'if_statement',
       'for_statement',
@@ -22,9 +28,20 @@ const JAVASCRIPT: LanguageDefinition = {
 
 const JSX: LanguageDefinition = { ...JAVASCRIPT, name: 'jsx', extensions: ['jsx'] }
 
-const TYPESCRIPT: LanguageDefinition = { ...JAVASCRIPT, name: 'typescript', extensions: ['ts'] }
+const TYPESCRIPT: LanguageDefinition = {
+  ...JAVASCRIPT,
+  name: 'typescript',
+  extensions: ['ts'],
+  types: {
+    ...JAVASCRIPT.types,
+    interface: ['interface_declaration'],
+    type: ['type_alias_declaration'],
+    enum: ['enum_declaration'],
+    namespace: ['internal_module', 'ambient_declaration'],
+  },
+}
 
-const TSX: LanguageDefinition = { ...JAVASCRIPT, name: 'tsx', extensions: ['tsx'] }
+const TSX: LanguageDefinition = { ...TYPESCRIPT, name: 'tsx', extensions: ['tsx'] }
 
 const PYTHON: LanguageDefinition = {
   name: 'python',
@@ -33,6 +50,12 @@ const PYTHON: LanguageDefinition = {
     function: ['function_definition'],
     class: ['class_definition'],
     import: ['import_statement', 'import_from_statement'],
+    interface: [],
+    type: [],
+    enum: [],
+    namespace: [],
+    constant: [],
+    variable: [],
     branch: [
       'if_statement',
       'elif_clause',
@@ -50,8 +73,14 @@ const JAVA: LanguageDefinition = {
   extensions: ['java'],
   types: {
     function: ['method_declaration', 'constructor_declaration', 'compact_constructor_declaration'],
-    class: ['class_declaration'],
+    class: ['class_declaration', 'record_declaration'],
     import: ['import_declaration'],
+    interface: ['interface_declaration', 'annotation_type_declaration'],
+    type: [],
+    enum: ['enum_declaration'],
+    namespace: [],
+    constant: [],
+    variable: [],
     branch: [
       'if_statement',
       'for_statement',
@@ -73,6 +102,12 @@ const KOTLIN: LanguageDefinition = {
     function: ['function_declaration', 'anonymous_function', 'lambda_expression', 'getter', 'setter', 'init_clause'],
     class: ['class_declaration', 'object_declaration'],
     import: ['import'],
+    interface: [],
+    type: ['type_alias'],
+    enum: [],
+    namespace: [],
+    constant: [],
+    variable: [],
     branch: ['if_expression', 'for_statement', 'while_statement', 'do_while_statement', 'when_entry', 'catch_block'],
     parameters: ['function_value_parameters'],
   },
@@ -85,6 +120,12 @@ export interface LanguageDefinition {
     function: readonly string[]
     class: readonly string[]
     import: readonly string[]
+    interface: readonly string[]
+    type: readonly string[]
+    enum: readonly string[]
+    namespace: readonly string[]
+    constant: readonly string[]
+    variable: readonly string[]
     branch: readonly string[]
     parameters: readonly string[]
   }
