@@ -27,7 +27,7 @@ describe('ProjectIndex addFile', () => {
     const results = index.search('myFunc')
     expect(results).toHaveLength(1)
     expect(results[0].node.type).toBe('function_declaration')
-    expect(results[0].context.filename).toBe('file.ts')
+    expect(results[0].filename).toBe('file.ts')
   })
 
   it('indexes classes and imports', () => {
@@ -79,7 +79,7 @@ describe('ProjectIndex addFile scoping', () => {
 
     const results = index.search('foo')
     expect(results).toHaveLength(2)
-    expect(results.map((r) => r.context.filename).sort()).toEqual(['a.ts', 'b.ts'])
+    expect(results.map((r) => r.filename).sort()).toEqual(['a.ts', 'b.ts'])
   })
 })
 
@@ -105,7 +105,7 @@ describe('ProjectIndex removeFile', () => {
 
     const results = index.search('foo')
     expect(results).toHaveLength(1)
-    expect(results[0].context.filename).toBe('b.ts')
+    expect(results[0].filename).toBe('b.ts')
   })
 })
 
@@ -166,7 +166,7 @@ describe('ProjectIndex serialize / fromSerialized', () => {
 
     expect(restored.search('foo')).toHaveLength(1)
     expect(restored.search('Bar')).toHaveLength(1)
-    expect(restored.search('Bar', ['class'])[0].context.filename).toBe('file.ts')
+    expect(restored.search('Bar', ['class'])[0].filename).toBe('file.ts')
   })
 
   it('skips entries for unknown file extensions', () => {
@@ -190,7 +190,7 @@ describe('ProjectIndex serialize / fromSerialized', () => {
     expect(
       restored
         .search('foo')
-        .map((r) => r.context.filename)
+        .map((r) => r.filename)
         .sort()
     ).toEqual(['a.ts', 'b.ts'])
   })

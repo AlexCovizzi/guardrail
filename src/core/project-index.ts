@@ -4,11 +4,8 @@ import { Node } from './node.js'
 
 export interface SearchResult {
   node: Node
-  context: {
-    source: string
-    filename: string
-    language: LanguageDefinition
-  }
+  filename: string
+  language: LanguageDefinition
 }
 
 export interface ProjectContext {
@@ -30,7 +27,6 @@ interface InternalEntry {
   endPosition: Position
   isNamed: boolean
   language: LanguageDefinition
-  source: string
 }
 
 function extractName(rawNode: any): string | null {
@@ -104,7 +100,6 @@ export class ProjectIndex implements ProjectContext {
         endPosition: child.endPosition,
         isNamed: child.isNamed,
         language,
-        source,
       }
       const kindMap = this.byKind.get(kind)!
       if (!kindMap.has(name)) kindMap.set(name, [])
@@ -161,7 +156,7 @@ export class ProjectIndex implements ProjectContext {
       if (!language) continue
       const kind = findKindForType(raw.nodeType, language)
       if (kind === null) continue
-      const entry: InternalEntry = { ...raw, language, source: '' }
+      const entry: InternalEntry = { ...raw, language }
       const kindMap = index.byKind.get(kind)!
       if (!kindMap.has(entry.name)) kindMap.set(entry.name, [])
       kindMap.get(entry.name)!.push(entry)
@@ -172,7 +167,8 @@ export class ProjectIndex implements ProjectContext {
   private matchEntries(kindMap: Map<string, InternalEntry[]>, name: string | RegExp): SearchResult[] {
     const toResult = (entry: InternalEntry): SearchResult => ({
       node: makeShallowNode(entry),
-      context: { source: entry.source, filename: entry.filename, language: entry.language },
+      filename: entry.filename,
+      language: entry.language,
     })
 
     if (name === '') {

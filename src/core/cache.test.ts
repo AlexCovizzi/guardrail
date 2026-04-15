@@ -123,7 +123,7 @@ describe('Cache', () => {
       expect(cache.getHashes().has(testFile)).toBe(true)
       const results = cache.getIndex().search('foo')
       expect(results).toHaveLength(1)
-      expect(results[0].context.filename).toBe(testFile)
+      expect(results[0].filename).toBe(testFile)
     })
 
     it('replaces existing entries for the same file', async () => {
