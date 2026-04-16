@@ -5,13 +5,12 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createCommand } from 'commander'
-import { Config, ConfigLoadError } from '../config/config.js'
-import { Engine, type Result } from '../core/engine.js'
+import { ConfigLoadError } from '../config/config.js'
+import { Guardrail } from '../core/guardrail.js'
 import { Env } from '../core/env.js'
-import { ParseError, Parser } from '../core/parser.js'
-import { Timer } from '../core/timer.js'
+import { ParseError } from '../core/parser.js'
 import { buildReport, formatReport } from '../core/timing-report.js'
-import { RuleRegistry } from '../rules/registry.js'
+import type { Result } from '../core/engine.js'
 
 const { version } = createRequire(import.meta.url)('../../package.json')
 
@@ -85,22 +84,16 @@ export default function(register) {
 }
 
 async function listRules() {
-  const env = Env.create(process.cwd(), homedir())
-  const registry = await RuleRegistry.load(env)
-
-  const entries = registry.getEntries()
-
-  for (const { ruleId, definition } of entries) {
-    const severity = definition.defaultSeverity ?? 'error'
-    console.log(`${ruleId}  (${severity})  ${definition.description}`)
+  const gr = await Guardrail.load()
+  for (const { ruleId, severity, description } of gr.listRules()) {
+    console.log(`${ruleId}  (${severity})  ${description}`)
   }
 }
 
 async function config() {
   try {
-    const config = await Config.load(Env.create(process.cwd(), homedir()))
-
-    console.log(JSON.stringify(config.toJson(), null, 2))
+    const gr = await Guardrail.load()
+    console.log(JSON.stringify(gr.config.toJson(), null, 2))
   } catch (err) {
     if (err instanceof ConfigLoadError) {
       process.stderr.write(`guardrail: ${err.message}\n`)
@@ -115,27 +108,18 @@ async function check(
   options: { json: boolean; quiet: boolean; timing: boolean; claudeCode: boolean }
 ) {
   try {
-    const timer = new Timer()
-    const env = Env.create(process.cwd(), homedir())
-
-    const config = await timer.measure('config.load', () => Config.load(env))
-    const registry = await timer.measure('registry.load', () => RuleRegistry.load(env))
-    const parser = await timer.measure('parser.load', () => Parser.load())
-
-    validateKnownRules(config, registry)
-
-    const engine = new Engine(parser, config, registry, timer)
+    const gr = await Guardrail.load()
 
     if (options.claudeCode) {
-      await runClaudeCodeHook(engine)
+      await runClaudeCodeHook(gr)
       process.exit(0)
     }
 
-    const results = await engine.check(targets.length === 0 ? ['.'] : targets)
+    const results = await gr.check(targets.length === 0 ? ['.'] : targets)
     outputResults(results, options)
 
     if (options.timing) {
-      const report = buildReport(timer.getMetrics())
+      const report = buildReport(gr.getMetrics())
       process.stderr.write(`\n${formatReport(report)}\n`)
     }
 
@@ -149,22 +133,7 @@ async function check(
   }
 }
 
-function validateKnownRules(config: Config, ruleRegistry: RuleRegistry): void {
-  const knownRuleIds = ruleRegistry.getRuleIds()
-  const data = config.toJson()
-  const configured = new Set<string>()
-  for (const id of Object.keys(data.rules ?? {})) configured.add(id)
-  for (const override of Object.values(data.overrides ?? {})) {
-    for (const id of Object.keys(override.rules ?? {})) configured.add(id)
-  }
-  for (const id of configured) {
-    if (!knownRuleIds.has(id)) {
-      process.stderr.write(`guardrail: unknown rule "${id}"\n`)
-    }
-  }
-}
-
-async function runClaudeCodeHook(engine: Engine): Promise<never> {
+async function runClaudeCodeHook(gr: Guardrail): Promise<never> {
   const input = await readStdin()
   let filePath: string | undefined
   try {
@@ -183,7 +152,7 @@ async function runClaudeCodeHook(engine: Engine): Promise<never> {
   }
 
   try {
-    const result = await engine.check([filePath])
+    const result = await gr.check([filePath])
     if (result.every((r) => r.passed)) {
       process.stderr.write(`${JSON.stringify(result)}\n`)
       process.exit(2)
