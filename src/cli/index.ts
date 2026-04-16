@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -143,17 +143,9 @@ async function runClaudeCodeHook(gr: Guardrail): Promise<never> {
   }
   if (!filePath) process.exit(0)
 
-  let _source: string
-  try {
-    _source = readFileSync(filePath, 'utf-8')
-  } catch (err) {
-    process.stderr.write(`guardrail: cannot read ${filePath}: ${(err as Error).message}\n`)
-    process.exit(2)
-  }
-
   try {
     const result = await gr.check([filePath])
-    if (result.every((r) => r.passed)) {
+    if (!result.every((r) => r.passed)) {
       process.stderr.write(`${JSON.stringify(result)}\n`)
       process.exit(2)
     }
