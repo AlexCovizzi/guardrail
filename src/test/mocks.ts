@@ -8,4 +8,6 @@ export class MockTimer extends Timer {
   measure<T>(_name: string, fn: () => T | Promise<T>): T | Promise<T> {
     return fn()
   }
+  addFileStats(_lines: number, _chars: number, _nodes: number): void {}
+  addRuleTime(_ruleId: string, _ms: number): void {}
 }

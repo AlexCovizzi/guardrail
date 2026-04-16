@@ -3,22 +3,13 @@ export interface TimingMark {
   durationMs: number
 }
 
-export interface PerFileTiming {
-  filename: string
-  lines: number
-  chars: number
-  nodesVisited: number
-  parseMs: number
-  createRulesMs: number
-  buildDispatchMs: number
-  walkMs: number
-  totalMs: number
-  perRule: Map<string, number>
-}
-
 export interface TimingMetrics {
   marks: TimingMark[]
-  perFile: PerFileTiming[]
+  filesChecked: number
+  totalLines: number
+  totalChars: number
+  totalNodes: number
+  ruleTotals: Map<string, { totalMs: number; files: number }>
 }
 
 export class Timer {
@@ -26,7 +17,11 @@ export class Timer {
   private markStarts = new Map<string, number>()
   private metrics: TimingMetrics = {
     marks: this.marks,
-    perFile: [],
+    filesChecked: 0,
+    totalLines: 0,
+    totalChars: 0,
+    totalNodes: 0,
+    ruleTotals: new Map(),
   }
 
   start(name: string): void {
@@ -65,6 +60,23 @@ export class Timer {
     } catch (e) {
       this.end(name)
       throw e
+    }
+  }
+
+  addFileStats(lines: number, chars: number, nodes: number): void {
+    this.metrics.filesChecked++
+    this.metrics.totalLines += lines
+    this.metrics.totalChars += chars
+    this.metrics.totalNodes += nodes
+  }
+
+  addRuleTime(ruleId: string, ms: number): void {
+    const existing = this.metrics.ruleTotals.get(ruleId)
+    if (existing) {
+      existing.totalMs += ms
+      existing.files += 1
+    } else {
+      this.metrics.ruleTotals.set(ruleId, { totalMs: ms, files: 1 })
     }
   }
 

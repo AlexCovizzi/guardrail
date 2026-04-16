@@ -7,7 +7,7 @@ import { detectLanguage, type LanguageDefinition, nodeTypesFor } from './languag
 import type { SemanticKind } from './languages/types.js'
 import { Node } from './node.js'
 import { ParseError, type Parser } from './parser.js'
-import type { PerFileTiming, Timer } from './timer.js'
+import type { Timer } from './timer.js'
 
 export interface Violation {
   ruleId: string
@@ -125,6 +125,15 @@ function dispatchEntries(
   }
 }
 
+interface ParsedFile {
+  filename: string
+  source: string
+  language: LanguageDefinition | null
+  tree: any
+  lines: number
+  chars: number
+}
+
 export class Engine {
   constructor(
     private parser: Parser,
@@ -137,37 +146,36 @@ export class Engine {
     const ignore = this.config.getIgnorePatterns()
     const expanded = expandInputs(targets, ignore)
 
-    const fileTimings: PerFileTiming[] = []
     const results: Result[] = []
 
     await this.timer.measure('check.files', async () => {
-      const rs = await Promise.all(expanded.map((file) => this.checkFile(file)))
-      for (const r of rs) {
-        if (!r) continue
-        results.push(r.result)
-        if (r.timing) fileTimings.push(r.timing)
+      // Parse all files in parallel (only truly async phase)
+      const parsed = await this.timer.measure('parse', async () =>
+        Promise.all(expanded.map((file) => this.parseFile(file)))
+      )
+
+      // Process parsed results sequentially — clean timing, no concurrency inflation
+      for (const entry of parsed) {
+        if (!entry) continue
+        const result = this.checkTree(entry)
+        this.timer.addFileStats(entry.lines, entry.chars, result.nodesVisited)
+        results.push(result.result)
+        if (entry.tree && typeof entry.tree.delete === 'function') entry.tree.delete()
       }
     })
-
-    this.timer.getMetrics().perFile = fileTimings
 
     return results
   }
 
-  private async checkFile(
-    file: string
-  ): Promise<{ result: Result; timing: PerFileTiming | undefined } | null> {
+  private async parseFile(file: string): Promise<ParsedFile | null> {
     const language = detectLanguage(file)
-    if (!language) return { result: { filename: file, violations: [], passed: true }, timing: undefined }
+    if (!language) return { filename: file, source: '', language, tree: null, lines: 0, chars: 0 }
 
     let source: string
     let tree: any
-    let parseMs = 0
     try {
       source = readFileSync(file, 'utf-8')
-      const parseStart = performance.now()
       tree = await this.parser.parse(file, source)
-      parseMs = performance.now() - parseStart
     } catch (err) {
       if (err instanceof ParseError) {
         process.stderr.write(`guardrail: ${err.message}\n`)
@@ -176,65 +184,58 @@ export class Engine {
       throw err
     }
 
-    const out = this.checkTree({ filename: file, source, language }, tree, parseMs)
-    if (tree && typeof tree.delete === 'function') tree.delete()
-    return out
+    const lines = source.split('\n').length
+    const chars = source.length
+    return { filename: file, source, language, tree, lines, chars }
   }
 
-  private checkTree(
-    file: {
-      filename: string
-      source: string
-      language: LanguageDefinition
-    },
-    tree: any,
-    parseMs: number
-  ): { result: Result; timing: PerFileTiming | undefined } {
-    const rulesStart = performance.now()
-    const rules = this.registry
-      .createRules(this.config.forFile(file.filename))
-      .filter((r) => !r.languages || r.languages.includes(file.language.name))
-    const createRulesMs = performance.now() - rulesStart
+  private checkTree(file: ParsedFile): { result: Result; nodesVisited: number } {
+    if (!file.language || !file.tree) {
+      return {
+        result: { filename: file.filename, violations: [], passed: true },
+        nodesVisited: 0,
+      }
+    }
+
+    const { language, tree, filename, source } = file
+
+    const rules = this.timer.measure('createRules', () =>
+      this.registry
+        .createRules(this.config.forFile(filename))
+        .filter((r) => !r.languages || r.languages.includes(language.name))
+    )
 
     if (rules.length === 0) {
-      return { result: { filename: file.filename, violations: [], passed: true }, timing: undefined }
+      return {
+        result: { filename, violations: [], passed: true },
+        nodesVisited: 0,
+      }
     }
 
-    const dispatchStart = performance.now()
-    const dispatchMap = buildDispatchMap(rules, file.language)
-    const buildDispatchMs = performance.now() - dispatchStart
+    const dispatchMap = this.timer.measure('buildDispatch', () =>
+      buildDispatchMap(rules, language)
+    )
 
     const ctx: RuleContext = {
-      source: file.source,
-      filename: file.filename,
-      language: file.language,
+      source,
+      filename,
+      language,
     }
-    const walkStart = performance.now()
-    const { violations, nodesVisited, perRule } = walkTree(tree, dispatchMap, ctx)
-    const walkMs = performance.now() - walkStart
+    const { violations, nodesVisited, perRule } = this.timer.measure('walk', () =>
+      walkTree(tree, dispatchMap, ctx)
+    )
 
-    const lines = file.source.split('\n').length
-    const chars = file.source.length
-    const timing: PerFileTiming = {
-      filename: file.filename,
-      lines,
-      chars,
-      nodesVisited,
-      parseMs,
-      createRulesMs,
-      buildDispatchMs,
-      walkMs,
-      totalMs: parseMs + createRulesMs + buildDispatchMs + walkMs,
-      perRule,
+    for (const [ruleId, ms] of perRule) {
+      this.timer.addRuleTime(ruleId, ms)
     }
 
     return {
       result: {
-        filename: file.filename,
+        filename,
         violations,
         passed: violations.filter((v) => v.severity === 'error').length === 0,
       },
-      timing,
+      nodesVisited,
     }
   }
 }

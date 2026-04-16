@@ -30,77 +30,24 @@ function sumMarksNamed(metrics: TimingMetrics, names: string[]): number {
   return metrics.marks.filter((m) => names.includes(m.name)).reduce((sum, m) => sum + m.durationMs, 0)
 }
 
-function aggregateRules(perFile: TimingMetrics['perFile']): {
+function sumMarksByName(metrics: TimingMetrics, name: string): number {
+  return metrics.marks.filter((m) => m.name === name).reduce((sum, m) => sum + m.durationMs, 0)
+}
+
+function aggregateRules(ruleTotals: TimingMetrics['ruleTotals']): {
   ruleAverages: TimingReport['ruleAverages']
   totalRuleExec: number
 } {
-  const ruleTotals = new Map<string, { totalMs: number; files: number }>()
-  for (const f of perFile) {
-    for (const [ruleId, ms] of f.perRule) {
-      const entry = ruleTotals.get(ruleId)
-      if (entry) {
-        entry.totalMs += ms
-        entry.files += 1
-      } else {
-        ruleTotals.set(ruleId, { totalMs: ms, files: 1 })
-      }
-    }
+  let totalRuleExec = 0
+  const ruleAverages: TimingReport['ruleAverages'] = []
+
+  for (const [ruleId, { totalMs, files }] of ruleTotals) {
+    totalRuleExec += totalMs
+    ruleAverages.push({ ruleId, avgMs: totalMs / files, totalMs, files })
   }
 
-  const totalRuleExec = [...ruleTotals.values()].reduce((s, r) => s + r.totalMs, 0)
-  const ruleAverages = [...ruleTotals.entries()]
-    .map(([ruleId, { totalMs, files }]) => ({
-      ruleId,
-      avgMs: totalMs / files,
-      totalMs,
-      files,
-    }))
-    .sort((a, b) => b.totalMs - a.totalMs)
-
+  ruleAverages.sort((a, b) => b.totalMs - a.totalMs)
   return { ruleAverages, totalRuleExec }
-}
-
-/**
- * Per-file timing for parse, createRules, and buildDispatch is inflated
- * under concurrent Promise.all execution — each file's timer includes time
- * waiting for other files' synchronous work on the shared JS thread.
- *
- * Walk and rule execution are NOT inflated: walk runs synchronously after
- * each file's await resolves, and rule timing is measured synchronously.
- *
- * So we use walkMs and ruleExec directly, and scale only the concurrency-
- * inflated measurements (parse, createRules, buildDispatch) to fill the
- * remaining wall-clock time.
- */
-function estimateBreakdown(
-  metrics: TimingMetrics,
-  checkFilesMs: number,
-  totalRuleExec: number
-): TimingReport['breakdown'] {
-  const aggParse = metrics.perFile.reduce((s, f) => s + f.parseMs, 0)
-  const aggCreateRules = metrics.perFile.reduce((s, f) => s + f.createRulesMs, 0)
-  const aggBuildDispatch = metrics.perFile.reduce((s, f) => s + f.buildDispatchMs, 0)
-  const aggWalk = metrics.perFile.reduce((s, f) => s + f.walkMs, 0)
-
-  // walk and ruleExec are synchronous — not subject to concurrency inflation
-  const walkOverhead = Math.max(aggWalk - totalRuleExec, 0)
-
-  // parse, createRules, buildDispatch ARE inflated by concurrency — scale them
-  const wallClockOverhead = Math.max(checkFilesMs - totalRuleExec - walkOverhead, 0)
-  const aggInflated = aggParse + aggCreateRules + aggBuildDispatch
-
-  if (aggInflated <= 0) {
-    return { parse: 0, createRules: 0, buildDispatch: 0, walkOverhead, ruleExec: totalRuleExec }
-  }
-
-  const scale = wallClockOverhead / aggInflated
-  return {
-    parse: aggParse * scale,
-    createRules: aggCreateRules * scale,
-    buildDispatch: aggBuildDispatch * scale,
-    walkOverhead,
-    ruleExec: totalRuleExec,
-  }
 }
 
 export function buildReport(metrics: TimingMetrics): TimingReport {
@@ -109,27 +56,33 @@ export function buildReport(metrics: TimingMetrics): TimingReport {
   const total = metrics.marks.reduce((s, m) => s + m.durationMs, 0)
 
   const checkFilesMs = markNamed(metrics, 'check.files')
-  const totalLines = metrics.perFile.reduce((s, f) => s + f.lines, 0)
-  const totalChars = metrics.perFile.reduce((s, f) => s + f.chars, 0)
-  const totalNodes = metrics.perFile.reduce((s, f) => s + f.nodesVisited, 0)
-  const fileCount = metrics.perFile.length || 1
+  const totalLines = metrics.totalLines
+  const totalChars = metrics.totalChars
+  const totalNodes = metrics.totalNodes
+  const fileCount = metrics.filesChecked || 1
 
-  const { ruleAverages, totalRuleExec } = aggregateRules(metrics.perFile)
-  const breakdown = estimateBreakdown(metrics, checkFilesMs, totalRuleExec)
+  // Direct aggregate timings from timer.measure — no concurrency inflation
+  const parse = sumMarksByName(metrics, 'parse')
+  const createRules = sumMarksByName(metrics, 'createRules')
+  const buildDispatch = sumMarksByName(metrics, 'buildDispatch')
+  const walk = sumMarksByName(metrics, 'walk')
+
+  const { ruleAverages, totalRuleExec } = aggregateRules(metrics.ruleTotals)
+  const walkOverhead = Math.max(walk - totalRuleExec, 0)
 
   return {
     marks: metrics.marks,
     startup,
     check,
     total,
-    filesChecked: metrics.perFile.length,
+    filesChecked: metrics.filesChecked,
     totalLines,
     totalChars,
     totalNodes,
     avgPerFile: checkFilesMs / fileCount,
     avgPerLine: checkFilesMs / (totalLines || 1),
     avgPerChar: checkFilesMs / (totalChars || 1),
-    breakdown,
+    breakdown: { parse, createRules, buildDispatch, walkOverhead, ruleExec: totalRuleExec },
     ruleAverages,
   }
 }
