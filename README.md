@@ -31,7 +31,7 @@ Glob patterns are expanded by guardrail — no shell dependency.
 |---|---|
 | `--json` | Machine-readable JSON output |
 | `--quiet` | Only show files with violations |
-| `--claude-code` | Run as a Claude Code hook (exit 2 on violations, suppress passing-file output) |
+| `--timing` | Print timing/performance breakdown to stderr |
 
 ## Supported languages
 
@@ -119,11 +119,30 @@ Cyclomatic complexity starts at 1 and increments for each branch point: `if`, `e
 |---|---|
 | 0 | No errors (warnings may be present) |
 | 1 | At least one error-level violation |
-| 2 | Claude Code hook mode: error-level violation detected |
+| 2 | `guardrail claude check`: error-level violation detected |
 
 ## Claude Code integration
 
-Guardrail runs automatically after every file edit/write in Claude Code via hooks.
+Set up Guardrail to run automatically after every file edit/write in Claude Code:
+
+```bash
+guardrail claude init              # global setup (default)
+guardrail claude init --scope local  # project-local setup
+```
+
+This command will:
+
+1. Add a `PostToolUse` hook to `.claude/settings.json` that runs `guardrail check` after every `Edit` or `Write`
+2. Append a guardrail prompt line to `CLAUDE.md` so Claude understands why edits are blocked
+3. Write `~/.guardrail/RULES.md` with instructions on how to add custom rules
+
+You'll see a summary of changes and be asked to confirm before anything is written.
+
+When a violation is detected, Claude Code sees the error and is blocked from proceeding.
+
+### Manual setup
+
+If you prefer to set things up manually:
 
 1. Build and link the binary:
 
@@ -142,7 +161,7 @@ npm run build && npm link
         "hooks": [
           {
             "type": "command",
-            "command": "guardrail check --claude-code",
+            "command": "guardrail claude check",
             "timeout": 30
           }
         ]
@@ -151,8 +170,6 @@ npm run build && npm link
   }
 }
 ```
-
-When a violation is detected, Claude Code sees the error and is blocked from proceeding.
 
 ## Custom rules
 

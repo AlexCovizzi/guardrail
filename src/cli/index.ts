@@ -5,10 +5,10 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createCommand } from 'commander'
+import { claudeCommand } from './claude.js'
 import { ConfigLoadError } from '../config/config.js'
 import { Guardrail } from '../core/guardrail.js'
 import { Env } from '../core/env.js'
-import { ParseError } from '../core/parser.js'
 import { buildReport, formatReport } from '../core/timing-report.js'
 import type { Result } from '../core/engine.js'
 
@@ -38,12 +38,9 @@ createCommand()
       .option('--json', 'Output results as JSON')
       .option('--quiet', 'Only show files with violations')
       .option('--timing', 'Print timing/performance breakdown to stderr')
-      .option(
-        '--claude-code',
-        'Claude Code hook mode: reads stdin JSON, outputs violations to stderr, exits 2 on failure'
-      )
       .action(check)
   )
+  .addCommand(claudeCommand())
   .parse()
 
 function addRule(name: string, options: { scope: string }) {
@@ -105,15 +102,10 @@ async function config() {
 
 async function check(
   targets: string[],
-  options: { json: boolean; quiet: boolean; timing: boolean; claudeCode: boolean }
+  options: { json: boolean; quiet: boolean; timing: boolean }
 ) {
   try {
     const gr = await Guardrail.load()
-
-    if (options.claudeCode) {
-      await runClaudeCodeHook(gr)
-      process.exit(0)
-    }
 
     const results = await gr.check(targets.length === 0 ? ['.'] : targets)
     outputResults(results, options)
@@ -133,32 +125,6 @@ async function check(
   }
 }
 
-async function runClaudeCodeHook(gr: Guardrail): Promise<never> {
-  const input = await readStdin()
-  let filePath: string | undefined
-  try {
-    filePath = JSON.parse(input)?.tool_input?.file_path
-  } catch {
-    process.exit(0)
-  }
-  if (!filePath) process.exit(0)
-
-  try {
-    const result = await gr.check([filePath])
-    if (!result.every((r) => r.passed)) {
-      process.stderr.write(`${JSON.stringify(result)}\n`)
-      process.exit(2)
-    }
-  } catch (err) {
-    if (err instanceof ParseError) {
-      process.stderr.write(`guardrail: ${err.message}\n`)
-      process.exit(2)
-    }
-    throw err
-  }
-  process.exit(0)
-}
-
 function outputResults(results: Result[], options: { json: boolean; quiet: boolean }): void {
   if (options.json) {
     console.log(JSON.stringify(results, null, 2))
@@ -176,14 +142,4 @@ function outputResults(results: Result[], options: { json: boolean; quiet: boole
   const errors = results.reduce((sum, r) => sum + r.violations.filter((v) => v.severity === 'error').length, 0)
   const warnings = results.reduce((sum, r) => sum + r.violations.filter((v) => v.severity === 'warning').length, 0)
   console.log(`\n${results.length} file(s), ${errors} error(s), ${warnings} warning(s)`)
-}
-
-function readStdin(): Promise<string> {
-  return new Promise((resolve) => {
-    let data = ''
-    process.stdin.setEncoding('utf-8')
-    process.stdin.on('data', (chunk) => (data += chunk))
-    process.stdin.on('end', () => resolve(data))
-    if (process.stdin.isTTY) resolve('')
-  })
 }

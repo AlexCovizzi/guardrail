@@ -5,7 +5,7 @@
 Guardrail — a static analysis tool for AI-generated code.
 Parses source files with tree-sitter, walks the AST, and runs user-defined rules that enforce bounds like max function lines, max nesting depth, max class methods, etc.
 Supports JavaScript, TypeScript, JSX, TSX, Python, Java, and Kotlin.
-Usable as a CLI (`guardrail check`) or as a library for Claude Code hooks.
+Usable as a CLI (`guardrail check`) or as a library for Claude Code hooks (`guardrail claude init` / `guardrail claude check`).
 
 ## Commands
 
