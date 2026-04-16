@@ -48,21 +48,29 @@ export class Timer {
     }
   }
 
-  measure<T>(name: string, fn: () => T): T {
+  measure<T>(name: string, fn: () => T): T
+  measure<T>(name: string, fn: () => Promise<T>): Promise<T>
+  measure<T>(name: string, fn: () => T | Promise<T>): T | Promise<T> {
     this.start(name)
     try {
-      return fn()
-    } finally {
+      const result = fn()
+      if (result instanceof Promise) {
+        return result.then(
+          (v) => {
+            this.end(name)
+            return v
+          },
+          (e) => {
+            this.end(name)
+            throw e
+          }
+        )
+      }
       this.end(name)
-    }
-  }
-
-  async measureAsync<T>(name: string, fn: () => Promise<T>): Promise<T> {
-    this.start(name)
-    try {
-      return await fn()
-    } finally {
+      return result
+    } catch (e) {
       this.end(name)
+      throw e
     }
   }
 

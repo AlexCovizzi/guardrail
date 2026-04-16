@@ -13,6 +13,7 @@ vi.mock('fs', async (importOriginal) => ({
 }))
 
 const { discoverRules } = await import('./discovery.js')
+const { Env } = await import('../core/env.js')
 const { existsSync, readdirSync } = await import('node:fs')
 
 const mockExistsSync = vi.mocked(existsSync)
@@ -40,7 +41,7 @@ describe('discoverRules', () => {
     mockExistsSync.mockReturnValue(false)
     const { register, calls } = makeRegister()
 
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(mockReaddirSync).not.toHaveBeenCalled()
     expect(calls).toHaveLength(0)
@@ -52,7 +53,7 @@ describe('discoverRules', () => {
     mockJitiImport.mockResolvedValue({ default: (register: Function) => register('my-rule', {} as any) })
 
     const { register, calls } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(calls).toEqual(['my-rule'])
   })
@@ -63,7 +64,7 @@ describe('discoverRules', () => {
     mockJitiImport.mockResolvedValue({ default: (register: Function) => register('global-rule', {} as any) })
 
     const { register, calls } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(calls).toEqual(['global-rule'])
   })
@@ -76,7 +77,7 @@ describe('discoverRules', () => {
       .mockResolvedValueOnce({ default: (register: Function) => register('local-rule', {} as any) })
 
     const { register, calls } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(calls).toEqual(['global-rule', 'local-rule'])
   })
@@ -88,7 +89,7 @@ describe('discoverRules', () => {
     mockJitiImport.mockResolvedValue(fn)
 
     const { register, calls } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(calls).toEqual(['my-rule'])
   })
@@ -99,7 +100,7 @@ describe('discoverRules', () => {
     mockJitiImport.mockResolvedValue({ default: (register: Function) => register('x', {} as any) })
 
     const { register } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(mockJitiImport).toHaveBeenCalledTimes(2)
   })
@@ -116,7 +117,7 @@ describe('discoverRules', () => {
     }))
 
     const { register } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(loadOrder.map((p) => p.split('/').pop())).toEqual(['a-rule.js', 'm-rule.js', 'z-rule.js'])
   })
@@ -130,7 +131,7 @@ describe('discoverRules', () => {
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     const { register, calls } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('bad-rule.js'))
     expect(calls).toEqual(['good-rule'])
@@ -143,7 +144,7 @@ describe('discoverRules', () => {
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     const { register } = makeRegister()
-    await discoverRules(process.cwd(), '/mock/home', register)
+    await discoverRules(Env.create(process.cwd(), '/mock/home'), register)
 
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('expected a register function'))
   })

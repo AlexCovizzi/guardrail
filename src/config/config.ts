@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { cosmiconfigSync } from 'cosmiconfig'
 import { TypeScriptLoader } from 'cosmiconfig-typescript-loader'
+import type { Env } from '../core/env.js'
 import type { ConfigData } from './config-data.js'
 import { FileConfig } from './file-config.js'
-import { globalPaths } from './paths.js'
 import recommendedPreset from './recommended-preset.js'
 
 export type { ConfigData }
@@ -162,11 +162,11 @@ export class ConfigLoadError extends Error {
 export class Config {
   private constructor(private data: ConfigData) {}
 
-  static async load(cwd: string, homeDir: string): Promise<Config> {
-    const { configDir, configPath } = globalPaths(homeDir)
+  static async load(env: Env): Promise<Config> {
+    const { configDir, configPath } = env.paths.global
     ensureGlobalConfig(configDir, configPath)
     const globalConfig = resolveExtends(loadGlobalConfig(configPath))
-    const localConfig = resolveExtends(loadLocalConfig(cwd))
+    const localConfig = resolveExtends(loadLocalConfig(env.cwd))
     validateStructure(globalConfig)
     validateStructure(localConfig)
     return new Config(mergeConfigs(globalConfig, localConfig))
@@ -174,10 +174,6 @@ export class Config {
 
   forFile(filename: string): FileConfig {
     return new FileConfig(this.data, filename)
-  }
-
-  getOverrides(): ConfigData['overrides'] {
-    return this.data.overrides
   }
 
   getIgnorePatterns(): string[] {

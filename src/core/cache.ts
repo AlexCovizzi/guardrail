@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { globalPaths } from '../config/paths.js'
+import type { Env } from './env.js'
 import type { LanguageDefinition } from './language.js'
 import { ProjectIndex, type SerializedIndex } from './project-index.js'
 
@@ -28,9 +28,9 @@ export class Cache {
     return new Cache(dir, hashes, index)
   }
 
-  static async load(cwd: string, homeDir: string): Promise<Cache> {
-    const { cacheDir } = globalPaths(homeDir)
-    const dir = projectCacheDir(cwd, cacheDir)
+  static async load(env: Env): Promise<Cache> {
+    const { cacheDir } = env.paths.global
+    const dir = projectCacheDir(env.cwd, cacheDir)
 
     const hashes = new Map<string, string>()
     let index = new ProjectIndex()

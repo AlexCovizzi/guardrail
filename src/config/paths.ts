@@ -1,6 +1,18 @@
 import { join } from 'node:path'
 
-export function globalPaths(home: string) {
+export interface GlobalPaths {
+  configDir: string
+  configPath: string
+  rulesDir: string
+  cacheDir: string
+}
+
+export interface LocalPaths {
+  configDir: string
+  rulesDir: string
+}
+
+export function globalPaths(home: string): GlobalPaths {
   const configDir = join(home, '.guardrail')
   return {
     configDir,
@@ -10,7 +22,7 @@ export function globalPaths(home: string) {
   }
 }
 
-export function localPaths(cwd: string) {
+export function localPaths(cwd: string): LocalPaths {
   const configDir = join(cwd, '.guardrail')
   return {
     configDir,

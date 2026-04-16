@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { createJiti } from 'jiti'
-import { globalPaths, localPaths } from '../config/paths.js'
+import type { Env } from '../core/env.js'
 import type { RegisterFn } from './rule.js'
 
 const jiti = createJiti(import.meta.url)
@@ -30,7 +30,7 @@ async function discoverRulesInDir(register: RegisterFn, dir: string): Promise<vo
   }
 }
 
-export async function discoverRules(cwd: string, homeDir: string, register: RegisterFn): Promise<void> {
-  await discoverRulesInDir(register, globalPaths(homeDir).rulesDir)
-  await discoverRulesInDir(register, localPaths(cwd).rulesDir)
+export async function discoverRules(env: Env, register: RegisterFn): Promise<void> {
+  await discoverRulesInDir(register, env.paths.global.rulesDir)
+  await discoverRulesInDir(register, env.paths.local.rulesDir)
 }

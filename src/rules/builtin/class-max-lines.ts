@@ -1,4 +1,4 @@
-import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
+import type { Node, RegisterFn, ReportFn, RuleContext } from '../rule.js'
 
 export default function (register: RegisterFn) {
   register('class-max-lines', {

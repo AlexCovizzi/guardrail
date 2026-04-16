@@ -28,17 +28,22 @@ vi.mock('node:fs', () => ({
 }))
 
 const { Config, ConfigLoadError } = await import('./config.js')
+const { Env } = await import('../core/env.js')
 
 beforeEach(() => {
   vi.clearAllMocks()
 })
+
+function makeEnv() {
+  return Env.create('/some/project', '/mock/home')
+}
 
 describe('Config.load', () => {
   it('returns config when no global or local config exists', async () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue(null)
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const rc = config.forFile('src/foo.ts').forRule('function-max-lines')
     expect(rc.number('max', { default: 60 })).toBe(60)
   })
@@ -49,7 +54,7 @@ describe('Config.load', () => {
       config: { rules: { 'function-max-lines': { max: 20 } } },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const rc = config.forFile('src/foo.ts').forRule('function-max-lines')
     expect(rc.number('max', { default: 60 })).toBe(20)
   })
@@ -61,7 +66,7 @@ describe('Config.load', () => {
     })
     mockCosmiconfigSearch.mockReturnValue(null)
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const rc = config.forFile('src/foo.ts').forRule('function-max-lines')
     expect(rc.number('max', { default: 60 })).toBe(40)
   })
@@ -75,7 +80,7 @@ describe('Config.load', () => {
       config: { rules: { 'function-max-lines': { max: 20 } } },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const rc = config.forFile('src/foo.ts').forRule('function-max-lines')
     expect(rc.number('max', { default: 60 })).toBe(20)
   })
@@ -89,7 +94,7 @@ describe('Config.load', () => {
       config: { rules: { 'function-max-complexity': { max: 5 } } },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(40)
     expect(config.forFile('src/foo.ts').forRule('function-max-complexity').number('max', { default: 0 })).toBe(5)
   })
@@ -109,7 +114,7 @@ describe('Config.load', () => {
       },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.py').forRule('function-max-lines').number('max', { default: 0 })).toBe(60)
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(10)
   })
@@ -129,7 +134,7 @@ describe('Config.load', () => {
       },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.py').forRule('function-max-lines').number('max', { default: 0 })).toBe(30)
   })
 
@@ -138,7 +143,7 @@ describe('Config.load', () => {
     mockCosmiconfigLoad.mockReturnValue({ config: {} })
     mockCosmiconfigSearch.mockReturnValue(null)
 
-    await Config.load('/some/project', '/mock/home')
+    await Config.load(makeEnv())
 
     expect(mockCosmiconfigLoad).toHaveBeenCalledWith('/mock/home/.guardrail/config.yaml')
   })
@@ -154,7 +159,7 @@ describe('Config glob overrides', () => {
       },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(40)
     expect(config.forFile('src/foo.py').forRule('function-max-lines').number('max', { default: 0 })).toBe(60)
   })
@@ -171,7 +176,7 @@ describe('Config glob overrides', () => {
       },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(40)
     expect(config.forFile('test/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(120)
   })
@@ -185,7 +190,7 @@ describe('Config glob overrides', () => {
       },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(60)
   })
 })
@@ -195,14 +200,14 @@ describe('Config.load validation', () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { rules: 42 } })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 
   it('throws on rule config being a non-object', async () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { rules: { 'bad-rule': 'oops' } } })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 
   it('throws on invalid severity', async () => {
@@ -211,7 +216,7 @@ describe('Config.load validation', () => {
       config: { rules: { 'some-rule': { severity: 'bad' } } },
     })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 
   it('throws on non-boolean enabled', async () => {
@@ -220,14 +225,14 @@ describe('Config.load validation', () => {
       config: { rules: { 'some-rule': { enabled: 'yes' } } },
     })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 
   it('throws on overrides being a non-object', async () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { overrides: 'bad' } })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 
   it('throws on override rules being a non-object', async () => {
@@ -236,7 +241,7 @@ describe('Config.load validation', () => {
       config: { overrides: { '**/*.ts': { rules: 'bad' } } },
     })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 
   it('accepts valid severity values', async () => {
@@ -245,21 +250,21 @@ describe('Config.load validation', () => {
       config: { rules: { 'some-rule': { severity: 'warning' } } },
     })
 
-    await expect(Config.load('/some/project', '/mock/home')).resolves.toBeDefined()
+    await expect(Config.load(makeEnv())).resolves.toBeDefined()
   })
 
   it('throws on invalid extends type', async () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { extends: 42 } })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 
   it('throws on extends with non-string entries', async () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { extends: ['recommended', 42] } })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow(ConfigLoadError)
+    await expect(Config.load(makeEnv())).rejects.toThrow(ConfigLoadError)
   })
 })
 
@@ -268,7 +273,7 @@ describe('Config.load extends', () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { extends: 'recommended' } })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(60)
     expect(config.forFile('src/foo.ts').forRule('function-max-complexity').number('max', { default: 0 })).toBe(10)
     expect(config.getIgnorePatterns()).toContain('node_modules')
@@ -281,7 +286,7 @@ describe('Config.load extends', () => {
       config: { extends: 'recommended', rules: { 'function-max-lines': { max: 30 } } },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(30)
     expect(config.forFile('src/foo.ts').forRule('function-max-complexity').number('max', { default: 0 })).toBe(10)
   })
@@ -292,7 +297,7 @@ describe('Config.load extends', () => {
       config: { extends: 'recommended', ignore: ['generated'] },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.getIgnorePatterns()).toContain('node_modules')
     expect(config.getIgnorePatterns()).toContain('generated')
   })
@@ -304,7 +309,7 @@ describe('Config.load extends', () => {
       config: { rules: { 'function-max-lines': { max: 20 } } },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(20)
     expect(config.forFile('src/foo.ts').forRule('function-max-complexity').number('max', { default: 0 })).toBe(10)
     expect(config.getIgnorePatterns()).toContain('node_modules')
@@ -314,14 +319,14 @@ describe('Config.load extends', () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { extends: 'nonexistent' } })
 
-    await expect(Config.load('/some/project', '/mock/home')).rejects.toThrow('Unknown preset "nonexistent"')
+    await expect(Config.load(makeEnv())).rejects.toThrow('Unknown preset "nonexistent"')
   })
 
   it('supports extends as an array', async () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: { extends: ['recommended'] } })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('function-max-lines').number('max', { default: 0 })).toBe(60)
   })
 
@@ -329,7 +334,7 @@ describe('Config.load extends', () => {
     mockExistsSync.mockReturnValue(false)
     mockCosmiconfigSearch.mockReturnValue({ config: {} })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     expect(config.forFile('src/foo.ts').forRule('any-rule').number('max', { default: 99 })).toBe(99)
     expect(config.getIgnorePatterns()).toEqual([])
   })
@@ -342,7 +347,7 @@ describe('Config ignore merging', () => {
       config: { extends: 'recommended', ignore: ['node_modules', 'generated'] },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const patterns = config.getIgnorePatterns()
     expect(patterns.filter((p) => p === 'node_modules')).toHaveLength(1)
     expect(patterns).toContain('generated')
@@ -354,7 +359,7 @@ describe('Config ignore merging', () => {
       config: { extends: 'recommended', ignore: ['!build'] },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const patterns = config.getIgnorePatterns()
     expect(patterns).not.toContain('build')
     expect(patterns).toContain('node_modules')
@@ -367,7 +372,7 @@ describe('Config ignore merging', () => {
       config: { extends: 'recommended', ignore: ['!build', '!target', 'generated'] },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const patterns = config.getIgnorePatterns()
     expect(patterns).not.toContain('build')
     expect(patterns).not.toContain('target')
@@ -381,7 +386,7 @@ describe('Config ignore merging', () => {
       config: { extends: 'recommended', ignore: ['!nonexistent'] },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const patterns = config.getIgnorePatterns()
     expect(patterns).not.toContain('!nonexistent')
     expect(patterns).toContain('node_modules')
@@ -396,7 +401,7 @@ describe('Config ignore merging', () => {
       config: { ignore: ['node_modules', 'generated'] },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const patterns = config.getIgnorePatterns()
     expect(patterns.filter((p) => p === 'node_modules')).toHaveLength(1)
     expect(patterns).toContain('dist')
@@ -412,7 +417,7 @@ describe('Config ignore merging', () => {
       config: { ignore: ['!dist', 'generated'] },
     })
 
-    const config = await Config.load('/some/project', '/mock/home')
+    const config = await Config.load(makeEnv())
     const patterns = config.getIgnorePatterns()
     expect(patterns).not.toContain('dist')
     expect(patterns).toContain('node_modules')

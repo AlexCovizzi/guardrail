@@ -1,4 +1,4 @@
-import type { RegisterFn, ReportFn, RuleContext, Node } from '../rule.js'
+import type { Node, RegisterFn, ReportFn, RuleContext } from '../rule.js'
 
 function countMethods(node: Node): number {
   let count = 0

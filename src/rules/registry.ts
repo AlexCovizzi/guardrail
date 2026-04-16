@@ -1,5 +1,6 @@
 import type { FileConfig } from '../config/file-config.js'
 import { RuleConfig } from '../config/rule-config.js'
+import type { Env } from '../core/env.js'
 import { registerBuiltins } from './builtin/index.js'
 import { discoverRules } from './discovery.js'
 import type { RegisterFn, Rule, RuleDefinition } from './rule.js'
@@ -12,12 +13,12 @@ type RuleEntry = {
 export class RuleRegistry {
   private entries: RuleEntry[] = []
 
-  static async load(cwd: string, homeDir: string): Promise<RuleRegistry> {
+  static async load(env: Env): Promise<RuleRegistry> {
     const registry = new RuleRegistry()
 
     const register = registry.register.bind(registry)
     registerBuiltins(register)
-    await discoverRules(cwd, homeDir, register)
+    await discoverRules(env, register)
     return registry
   }
 

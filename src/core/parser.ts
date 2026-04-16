@@ -38,7 +38,7 @@ async function getTreeSitterLanguage(filename: string): Promise<TreeSitter.Langu
   return lang
 }
 
-export async function initParser(): Promise<void> {
+async function initParser(): Promise<void> {
   if (initialized) return
   await TreeSitter.Parser.init()
   initialized = true

@@ -140,13 +140,12 @@ function updateMetrics(t: Timer, fileTimings: PerFileTiming[], totalFiles: numbe
 }
 
 export class Engine {
-  private timer: Timer | undefined
-
   constructor(
     private parser: Parser,
     private config: Config,
     private cache: Cache,
-    private registry: RuleRegistry
+    private registry: RuleRegistry,
+    private timer: Timer
   ) {}
 
   setTimer(timer: Timer): void {
@@ -157,29 +156,26 @@ export class Engine {
     const t = this.timer
     const ignore = this.config.getIgnorePatterns()
 
-    const projectFiles = this.measured(t, 'file.expand', () => expandInputs(['.'], ignore))
-    const expanded = this.measured(t, 'file.expand.targets', () => expandInputs(targets, ignore))
-    const { changed, deleted } = this.measured(t, 'cache.diff', () => this.cache.diff(projectFiles))
+    const projectFiles = expandInputs(['.'], ignore)
+    const expanded = expandInputs(targets, ignore)
+    const { changed, deleted } = this.cache.diff(projectFiles)
 
     this.cache.removeDeleted(deleted)
 
     const index = this.cache.getIndex()
     const doTiming = !!t
 
-    // Phase 1: Index all changed files so project.search() sees complete data.
-    // Parse and release one tree at a time — peak memory is O(1) trees.
-    await this.measuredAsync(t, 'parse.changed', async () => {
+    await this.timer.measure('parse.changed', async () => {
       for (const file of changed) {
         await this.indexFile(file)
       }
     })
-    this.measured(t, 'cache.write', () => this.cache.write())
+    this.timer.measure('cache.write', () => this.cache.write())
 
-    // Phase 2: Check all expanded files against rules.
     const fileTimings: PerFileTiming[] = []
     const results: Result[] = []
 
-    await this.measuredAsync(t, 'check.files', async () => {
+    await this.timer.measure('check.files', async () => {
       const rs = await Promise.all(expanded.map((file) => this.checkFile(file, index, doTiming)))
       for (const r of rs) {
         if (!r) continue
@@ -269,7 +265,18 @@ export class Engine {
     const lines = file.source.split('\n').length
     const chars = file.source.length
     const timing: PerFileTiming | undefined = doTiming
-      ? { filename: name, lines, chars, nodesVisited, parseMs, createRulesMs, buildDispatchMs, walkMs, totalMs: parseMs + createRulesMs + buildDispatchMs + walkMs, perRule }
+      ? {
+          filename: name,
+          lines,
+          chars,
+          nodesVisited,
+          parseMs,
+          createRulesMs,
+          buildDispatchMs,
+          walkMs,
+          totalMs: parseMs + createRulesMs + buildDispatchMs + walkMs,
+          perRule,
+        }
       : undefined
 
     return {
@@ -280,13 +287,5 @@ export class Engine {
       },
       timing,
     }
-  }
-
-  private measured<T>(t: Timer | undefined, name: string, fn: () => T): T {
-    return t ? t.measure(name, fn) : fn()
-  }
-
-  private async measuredAsync<T>(t: Timer | undefined, name: string, fn: () => Promise<T>): Promise<T> {
-    return t ? t.measureAsync(name, fn) : fn()
   }
 }
