@@ -19,9 +19,6 @@ export interface PerFileTiming {
 export interface TimingMetrics {
   marks: TimingMark[]
   perFile: PerFileTiming[]
-  totalFiles: number
-  changedFiles: number
-  cacheHitRate: number
 }
 
 export class Timer {
@@ -30,9 +27,6 @@ export class Timer {
   private metrics: TimingMetrics = {
     marks: this.marks,
     perFile: [],
-    totalFiles: 0,
-    changedFiles: 0,
-    cacheHitRate: 0,
   }
 
   start(name: string): void {

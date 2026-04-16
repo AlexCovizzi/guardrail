@@ -2,7 +2,6 @@ import type { RuleConfig } from '../config/rule-config.js'
 import type { LanguageDefinition } from '../core/language.js'
 import type { SemanticKind } from '../core/languages/types.js'
 import { Node } from '../core/node.js'
-import type { ProjectContext } from '../core/project-index.js'
 import { Tree } from '../core/tree.js'
 import { TreeCursor } from '../core/tree-cursor.js'
 
@@ -12,7 +11,6 @@ export interface RuleContext {
   source: string
   filename: string
   language: LanguageDefinition
-  project: ProjectContext
 }
 
 export interface Position {

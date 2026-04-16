@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Rule } from '../rules/rule.js'
 import { makeNode } from '../test/fixtures.js'
-import { Cache } from './cache.js'
+import { MockTimer } from '../test/mocks.js'
 import { Engine } from './engine.js'
 import { Language } from './language.js'
 import { Parser } from './parser.js'
@@ -61,8 +61,8 @@ function makeEngineWithRules(rules: Rule[]): Engine {
   const registry = { getEntries: () => [], createRules: mockCreateRules } as any
   const parser = new Parser() as any
   const config = makeConfig()
-  const cache = Cache.inMemory()
-  return new Engine(parser, config, cache, registry)
+  const timer = new MockTimer()
+  return new Engine(parser, config, registry, timer)
 }
 
 beforeEach(() => {

@@ -12,9 +12,6 @@ export interface TimingReport {
   avgPerFile: number
   avgPerLine: number
   avgPerChar: number
-  totalFiles: number
-  changedFiles: number
-  cacheHitRate: number
   breakdown: {
     parse: number
     createRules: number
@@ -107,8 +104,8 @@ function estimateBreakdown(
 }
 
 export function buildReport(metrics: TimingMetrics): TimingReport {
-  const startup = sumMarksNamed(metrics, ['config.load', 'parser.load', 'cache.load', 'registry.load'])
-  const check = sumMarksNamed(metrics, ['file.expand', 'cache.diff', 'parse.changed', 'cache.write', 'check.files'])
+  const startup = sumMarksNamed(metrics, ['config.load', 'parser.load', 'registry.load'])
+  const check = sumMarksNamed(metrics, ['file.expand', 'check.files'])
   const total = metrics.marks.reduce((s, m) => s + m.durationMs, 0)
 
   const checkFilesMs = markNamed(metrics, 'check.files')
@@ -132,9 +129,6 @@ export function buildReport(metrics: TimingMetrics): TimingReport {
     avgPerFile: checkFilesMs / fileCount,
     avgPerLine: checkFilesMs / (totalLines || 1),
     avgPerChar: checkFilesMs / (totalChars || 1),
-    totalFiles: metrics.totalFiles,
-    changedFiles: metrics.changedFiles,
-    cacheHitRate: metrics.cacheHitRate,
     breakdown,
     ruleAverages,
   }
@@ -172,11 +166,6 @@ export function formatReport(report: TimingReport): string {
   lines.push(`${'startup'.padEnd(maxNameLen + 2)} ${report.startup.toFixed(1)} ms`)
   lines.push(`${'check'.padEnd(maxNameLen + 2)} ${report.check.toFixed(1)} ms`)
   lines.push(`${'total'.padEnd(maxNameLen + 2)} ${report.total.toFixed(1)} ms`)
-
-  lines.push('')
-  lines.push(
-    `cache: ${report.changedFiles}/${report.totalFiles} files changed (${(report.cacheHitRate * 100).toFixed(0)}% hit rate)`
-  )
 
   if (report.filesChecked > 0) {
     lines.push('')

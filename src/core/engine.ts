@@ -2,13 +2,11 @@ import { readFileSync } from 'node:fs'
 import type { Config } from '../config/config.js'
 import type { RuleRegistry } from '../rules/registry.js'
 import type { Handler, Location, ReportFn, Rule, RuleContext } from '../rules/rule.js'
-import type { Cache } from './cache.js'
 import { expandInputs } from './files.js'
 import { detectLanguage, type LanguageDefinition, nodeTypesFor } from './language.js'
 import type { SemanticKind } from './languages/types.js'
 import { Node } from './node.js'
 import { ParseError, type Parser } from './parser.js'
-import type { ProjectIndex } from './project-index.js'
 import type { PerFileTiming, Timer } from './timer.js'
 
 export interface Violation {
@@ -73,7 +71,7 @@ interface WalkResult {
   perRule: Map<string, number>
 }
 
-function walkTree(tree: any, dispatchMap: DispatchMap, context: RuleContext, doTiming: boolean): WalkResult {
+function walkTree(tree: any, dispatchMap: DispatchMap, context: RuleContext): WalkResult {
   const violations: Violation[] = []
   const perRule = new Map<string, number>()
   let nodesVisited = 0
@@ -86,7 +84,7 @@ function walkTree(tree: any, dispatchMap: DispatchMap, context: RuleContext, doT
     nodesVisited++
 
     if (entries) {
-      dispatchEntries(entries, rawNode, { context, violations, perRule, doTiming })
+      dispatchEntries(entries, rawNode, { context, violations, perRule })
     }
 
     if (!isExit) {
@@ -104,9 +102,9 @@ function walkTree(tree: any, dispatchMap: DispatchMap, context: RuleContext, doT
 function dispatchEntries(
   entries: DispatchEntry[],
   rawNode: any,
-  ctx: { context: RuleContext; violations: Violation[]; perRule: Map<string, number>; doTiming: boolean }
+  ctx: { context: RuleContext; violations: Violation[]; perRule: Map<string, number> }
 ): void {
-  const { context, violations, perRule, doTiming } = ctx
+  const { context, violations, perRule } = ctx
   const node = new Node(rawNode, context.language)
   for (const { rule, fn } of entries) {
     const report: ReportFn = ({ message }) => {
@@ -121,62 +119,29 @@ function dispatchEntries(
         severity: rule.severity,
       })
     }
-    if (doTiming) {
-      const start = performance.now()
-      fn(node, context, report)
-      perRule.set(rule.id, (perRule.get(rule.id) ?? 0) + (performance.now() - start))
-    } else {
-      fn(node, context, report)
-    }
+    const start = performance.now()
+    fn(node, context, report)
+    perRule.set(rule.id, (perRule.get(rule.id) ?? 0) + (performance.now() - start))
   }
-}
-
-function updateMetrics(t: Timer, fileTimings: PerFileTiming[], totalFiles: number, changedFiles: number): void {
-  const metrics = t.getMetrics()
-  metrics.perFile = fileTimings
-  metrics.totalFiles = totalFiles
-  metrics.changedFiles = changedFiles
-  metrics.cacheHitRate = totalFiles > 0 ? (totalFiles - changedFiles) / totalFiles : 0
 }
 
 export class Engine {
   constructor(
     private parser: Parser,
     private config: Config,
-    private cache: Cache,
     private registry: RuleRegistry,
     private timer: Timer
   ) {}
 
-  setTimer(timer: Timer): void {
-    this.timer = timer
-  }
-
   async check(targets: string[]): Promise<Result[]> {
-    const t = this.timer
     const ignore = this.config.getIgnorePatterns()
-
-    const projectFiles = expandInputs(['.'], ignore)
     const expanded = expandInputs(targets, ignore)
-    const { changed, deleted } = this.cache.diff(projectFiles)
-
-    this.cache.removeDeleted(deleted)
-
-    const index = this.cache.getIndex()
-    const doTiming = !!t
-
-    await this.timer.measure('parse.changed', async () => {
-      for (const file of changed) {
-        await this.indexFile(file)
-      }
-    })
-    this.timer.measure('cache.write', () => this.cache.write())
 
     const fileTimings: PerFileTiming[] = []
     const results: Result[] = []
 
     await this.timer.measure('check.files', async () => {
-      const rs = await Promise.all(expanded.map((file) => this.checkFile(file, index, doTiming)))
+      const rs = await Promise.all(expanded.map((file) => this.checkFile(file)))
       for (const r of rs) {
         if (!r) continue
         results.push(r.result)
@@ -184,28 +149,13 @@ export class Engine {
       }
     })
 
-    if (t) updateMetrics(t, fileTimings, projectFiles.length, changed.length)
+    this.timer.getMetrics().perFile = fileTimings
 
     return results
   }
 
-  /** Parse and index a changed file into ProjectIndex, then free the tree. */
-  private async indexFile(file: string): Promise<void> {
-    const language = detectLanguage(file)
-    if (!language) return
-
-    const source = readFileSync(file, 'utf-8')
-    const tree = await this.parser.parse(file, source)
-    this.cache.updateChanged([{ filename: file, source, language, tree }])
-
-    if (tree && typeof tree.delete === 'function') tree.delete()
-  }
-
-  /** Parse, check, and free one file. Returns null if the file can't be parsed. */
   private async checkFile(
-    file: string,
-    index: ProjectIndex,
-    doTiming: boolean
+    file: string
   ): Promise<{ result: Result; timing: PerFileTiming | undefined } | null> {
     const language = detectLanguage(file)
     if (!language) return { result: { filename: file, violations: [], passed: true }, timing: undefined }
@@ -215,9 +165,9 @@ export class Engine {
     let parseMs = 0
     try {
       source = readFileSync(file, 'utf-8')
-      const parseStart = doTiming ? performance.now() : 0
+      const parseStart = performance.now()
       tree = await this.parser.parse(file, source)
-      if (doTiming) parseMs = performance.now() - parseStart
+      parseMs = performance.now() - parseStart
     } catch (err) {
       if (err instanceof ParseError) {
         process.stderr.write(`guardrail: ${err.message}\n`)
@@ -226,12 +176,11 @@ export class Engine {
       throw err
     }
 
-    const out = this.checkTree({ filename: file, source, language }, tree, { index, doTiming, parseMs })
+    const out = this.checkTree({ filename: file, source, language }, tree, parseMs)
     if (tree && typeof tree.delete === 'function') tree.delete()
     return out
   }
 
-  /** Check an already-parsed tree against rules. No file I/O or parsing. */
   private checkTree(
     file: {
       filename: string
@@ -239,14 +188,13 @@ export class Engine {
       language: LanguageDefinition
     },
     tree: any,
-    treeCtx: { index: ProjectIndex; doTiming: boolean; parseMs: number }
+    parseMs: number
   ): { result: Result; timing: PerFileTiming | undefined } {
-    const { index, doTiming, parseMs } = treeCtx
     const rulesStart = performance.now()
     const rules = this.registry
       .createRules(this.config.forFile(file.filename))
       .filter((r) => !r.languages || r.languages.includes(file.language.name))
-    const createRulesMs = doTiming ? performance.now() - rulesStart : 0
+    const createRulesMs = performance.now() - rulesStart
 
     if (rules.length === 0) {
       return { result: { filename: file.filename, violations: [], passed: true }, timing: undefined }
@@ -254,30 +202,31 @@ export class Engine {
 
     const dispatchStart = performance.now()
     const dispatchMap = buildDispatchMap(rules, file.language)
-    const buildDispatchMs = doTiming ? performance.now() - dispatchStart : 0
+    const buildDispatchMs = performance.now() - dispatchStart
 
-    const name = file.filename
-    const ctx: RuleContext = { source: file.source, filename: name, language: file.language, project: index }
+    const ctx: RuleContext = {
+      source: file.source,
+      filename: file.filename,
+      language: file.language,
+    }
     const walkStart = performance.now()
-    const { violations, nodesVisited, perRule } = walkTree(tree, dispatchMap, ctx, doTiming)
-    const walkMs = doTiming ? performance.now() - walkStart : 0
+    const { violations, nodesVisited, perRule } = walkTree(tree, dispatchMap, ctx)
+    const walkMs = performance.now() - walkStart
 
     const lines = file.source.split('\n').length
     const chars = file.source.length
-    const timing: PerFileTiming | undefined = doTiming
-      ? {
-          filename: name,
-          lines,
-          chars,
-          nodesVisited,
-          parseMs,
-          createRulesMs,
-          buildDispatchMs,
-          walkMs,
-          totalMs: parseMs + createRulesMs + buildDispatchMs + walkMs,
-          perRule,
-        }
-      : undefined
+    const timing: PerFileTiming = {
+      filename: file.filename,
+      lines,
+      chars,
+      nodesVisited,
+      parseMs,
+      createRulesMs,
+      buildDispatchMs,
+      walkMs,
+      totalMs: parseMs + createRulesMs + buildDispatchMs + walkMs,
+      perRule,
+    }
 
     return {
       result: {

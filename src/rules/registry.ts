@@ -1,5 +1,4 @@
 import type { FileConfig } from '../config/file-config.js'
-import { RuleConfig } from '../config/rule-config.js'
 import type { Env } from '../core/env.js'
 import { registerBuiltins } from './builtin/index.js'
 import { discoverRules } from './discovery.js'

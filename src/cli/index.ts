@@ -6,7 +6,6 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createCommand } from 'commander'
 import { Config, ConfigLoadError } from '../config/config.js'
-import { Cache } from '../core/cache.js'
 import { Engine, type Result } from '../core/engine.js'
 import { Env } from '../core/env.js'
 import { ParseError, Parser } from '../core/parser.js'
@@ -112,28 +111,27 @@ async function config() {
 }
 
 async function check(
-  files: string[],
+  targets: string[],
   options: { json: boolean; quiet: boolean; timing: boolean; claudeCode: boolean }
 ) {
   try {
     const timer = new Timer()
     const env = Env.create(process.cwd(), homedir())
 
-    const registry = await timer.measure('registry.load', () => RuleRegistry.load(env))
     const config = await timer.measure('config.load', () => Config.load(env))
+    const registry = await timer.measure('registry.load', () => RuleRegistry.load(env))
     const parser = await timer.measure('parser.load', () => Parser.load())
-    const cache = await timer.measure('cache.load', () => Cache.load(env))
 
     validateKnownRules(config, registry)
 
-    const engine = new Engine(parser, config, cache, registry, timer)
+    const engine = new Engine(parser, config, registry, timer)
 
     if (options.claudeCode) {
       await runClaudeCodeHook(engine)
       process.exit(0)
     }
 
-    const results = await engine.check(files.length === 0 ? ['.'] : files)
+    const results = await engine.check(targets.length === 0 ? ['.'] : targets)
     outputResults(results, options)
 
     if (options.timing) {
