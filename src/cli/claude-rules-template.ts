@@ -43,6 +43,7 @@ Handlers in the \`create\` return object map **selectors** to functions called f
 
 | Selector | Matches |
 |----------|---------|
+| \`root\` | The top-level file node (program, module, source_file, etc.) |
 | \`function\` | Function declarations, expressions, arrow functions, methods |
 | \`class\` | Class declarations |
 | \`import\` | Import statements |

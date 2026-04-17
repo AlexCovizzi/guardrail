@@ -4,6 +4,7 @@ export const PYTHON: LanguageDefinition = {
   name: 'python',
   extensions: ['py'],
   kinds: {
+    root: [{ type: 'module' }],
     function: [{ type: 'function_definition' }],
     class: [{ type: 'class_definition' }],
     import: [{ type: 'import_statement' }, { type: 'import_from_statement' }],

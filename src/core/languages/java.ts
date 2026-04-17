@@ -4,6 +4,7 @@ export const JAVA: LanguageDefinition = {
   name: 'java',
   extensions: ['java'],
   kinds: {
+    root: [{ type: 'program' }],
     function: [
       { type: 'method_declaration' },
       { type: 'constructor_declaration' },

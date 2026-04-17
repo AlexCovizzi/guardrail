@@ -4,6 +4,7 @@ export const JAVASCRIPT: LanguageDefinition = {
   name: 'javascript',
   extensions: ['js'],
   kinds: {
+    root: [{ type: 'program' }],
     function: [
       { type: 'function_declaration' },
       { type: 'function_expression' },

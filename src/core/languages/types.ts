@@ -5,6 +5,7 @@ export interface NodePattern {
 }
 
 export type SemanticKind =
+  | 'root'
   | 'function'
   | 'class'
   | 'import'

@@ -4,6 +4,7 @@ export const KOTLIN: LanguageDefinition = {
   name: 'kotlin',
   extensions: ['kt', 'kts'],
   kinds: {
+    root: [{ type: 'source_file' }],
     function: [
       { type: 'function_declaration' },
       { type: 'anonymous_function' },

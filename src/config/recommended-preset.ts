@@ -7,7 +7,7 @@ export default {
     'function-max-params': { max: 4 },
     'class-max-lines': { max: 500 },
     'class-max-methods': { max: 20 },
-    'declaration-order': { disabled: true },
+    'declaration-order': { order: ['import', '*', 'export'] },
   },
   ignore: [
     '.git',
