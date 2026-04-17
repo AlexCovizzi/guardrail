@@ -79,6 +79,7 @@ Append \`Exit\` to fire on node exit: \`functionExit\`, \`_stringExit\`.
   report({
     message: 'Description of the problem',
     suggestion: 'Brief, actionable fix guidance',  // optional
+    node,  // optional — use this node's position instead of the handler node
   })
 }
 \`\`\`

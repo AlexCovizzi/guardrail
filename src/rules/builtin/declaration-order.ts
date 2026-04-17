@@ -51,6 +51,7 @@ export default function registerDeclarationOrder(register: RegisterFn) {
             report({
               message: `${kind} should come before ${prevKind}`,
               suggestion: `Move the ${kind} declaration above the ${prevKind}. Expected order: ${order.join(', ')}.`,
+              node: child,
             })
           }
           prevKind = kind as DeclarationKind

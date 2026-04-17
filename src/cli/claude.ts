@@ -228,7 +228,7 @@ function formatClaudeViolations(results: Result[]): string {
     if (result.violations.length === 0) continue
     lines.push(`⚠ Guardrail violations in ${result.filename}:`)
     for (const v of result.violations) {
-      const loc = `${v.location.start.line}:${v.location.start.column}`
+      const loc = `${v.location.start.line}:${v.location.start.column}-${v.location.end.line}:${v.location.end.column}`
       lines.push(``)
       lines.push(`  [${v.severity.toUpperCase()}] ${v.ruleId} (${loc})`)
       lines.push(`  ${v.message}`)

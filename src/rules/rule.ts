@@ -27,6 +27,8 @@ export interface ReportViolation {
   message: string
   /** An actionable suggestion for how to fix this violation. */
   suggestion?: string
+  /** The node to use for the violation location. Defaults to the handler-dispatch node. */
+  node?: Node
 }
 
 export type ReportFn = (violation: ReportViolation) => void

@@ -108,15 +108,16 @@ function dispatchEntries(
   const { context, violations, perRule } = ctx
   const node = new Node(rawNode, context.language)
   for (const { rule, fn } of entries) {
-    const report: ReportFn = ({ message, suggestion }) => {
+    const report: ReportFn = ({ message, suggestion, node: reportNode }) => {
+      const target = reportNode ? reportNode.unwrap() : rawNode
       violations.push({
         ruleId: rule.id,
         message,
         suggestion,
         description: rule.description,
         location: {
-          start: { line: rawNode.startPosition.row + 1, column: rawNode.startPosition.column },
-          end: { line: rawNode.endPosition.row + 1, column: rawNode.endPosition.column },
+          start: { line: target.startPosition.row + 1, column: target.startPosition.column },
+          end: { line: target.endPosition.row + 1, column: target.endPosition.column },
         },
         severity: rule.severity,
       })
