@@ -51,7 +51,8 @@ function aggregateRules(ruleTotals: TimingMetrics['ruleTotals']): {
 }
 
 export function buildReport(metrics: TimingMetrics): TimingReport {
-  const startup = markNamed(metrics, 'startup') || sumMarksNamed(metrics, ['config.load', 'parser.load', 'registry.load'])
+  const startup =
+    markNamed(metrics, 'startup') || sumMarksNamed(metrics, ['config.load', 'parser.load', 'registry.load'])
   const check = sumMarksNamed(metrics, ['file.expand', 'check.files'])
   const total = metrics.marks.reduce((s, m) => s + m.durationMs, 0)
 

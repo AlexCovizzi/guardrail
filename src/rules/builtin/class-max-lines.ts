@@ -12,6 +12,7 @@ export default function (register: RegisterFn) {
           if (lines <= max) return
           report({
             message: `Class is ${lines} lines (max: ${max})`,
+            suggestion: `Split this class into smaller, more focused classes. Extract related fields and methods into their own class.`,
           })
         },
       }

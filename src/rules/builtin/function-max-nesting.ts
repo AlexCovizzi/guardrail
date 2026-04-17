@@ -31,6 +31,7 @@ export default function (register: RegisterFn) {
           if (entry && entry.maxDepth > max) {
             report({
               message: `Function has nesting depth of ${entry.maxDepth} (max: ${max})`,
+              suggestion: `Reduce nesting by inverting conditions and returning early, or by extracting nested blocks into separate functions.`,
             })
           }
         },

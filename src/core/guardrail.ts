@@ -13,7 +13,7 @@ export class Guardrail {
     readonly env: Env,
     readonly config: Config,
     readonly registry: RuleRegistry,
-    private deps: { parser: Parser; timer: Timer },
+    private deps: { parser: Parser; timer: Timer }
   ) {}
 
   static async load(): Promise<Guardrail> {
@@ -25,7 +25,7 @@ export class Guardrail {
         timer.measure('config.load', () => Config.load(env)),
         timer.measure('registry.load', () => RuleRegistry.load(env)),
         timer.measure('parser.load', () => Parser.load()),
-      ]),
+      ])
     )
 
     validateKnownRules(config, registry)

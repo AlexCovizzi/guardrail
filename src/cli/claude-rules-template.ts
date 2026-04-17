@@ -76,7 +76,10 @@ Append \`Exit\` to fire on node exit: \`functionExit\`, \`_stringExit\`.
   ctx.source         // full file contents
   ctx.language       // language definition
 
-  report({ message: 'Description of the problem' })
+  report({
+    message: 'Description of the problem',
+    suggestion: 'Brief, actionable fix guidance',  // optional
+  })
 }
 \`\`\`
 
@@ -117,7 +120,7 @@ export default function(register: RegisterFn) {
           if (parent?.type !== 'member_expression') return
           const grandparent = parent.parent
           if (grandparent?.type !== 'call_expression') return
-          report({ message: 'Unexpected console call' })
+          report({ message: 'Unexpected console call', suggestion: 'Remove the console call or replace with a logging library.' })
         },
       }
     },

@@ -5,12 +5,12 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createCommand } from 'commander'
-import { claudeCommand } from './claude.js'
 import { ConfigLoadError } from '../config/config.js'
-import { Guardrail } from '../core/guardrail.js'
-import { Env } from '../core/env.js'
-import { buildReport, formatReport } from '../core/timing-report.js'
 import type { Result } from '../core/engine.js'
+import { Env } from '../core/env.js'
+import { Guardrail } from '../core/guardrail.js'
+import { buildReport, formatReport } from '../core/timing-report.js'
+import { claudeCommand } from './claude.js'
 
 const { version } = createRequire(import.meta.url)('../../package.json')
 
@@ -69,7 +69,7 @@ export default function(register) {
     create(config) {
       return {
         function(node, ctx, report) {
-          // your logic here
+          report({ message: '', suggestion: '' })
         },
       }
     },
@@ -100,10 +100,7 @@ async function config() {
   }
 }
 
-async function check(
-  targets: string[],
-  options: { json: boolean; quiet: boolean; timing: boolean }
-) {
+async function check(targets: string[], options: { json: boolean; quiet: boolean; timing: boolean }) {
   try {
     const gr = await Guardrail.load()
 
@@ -136,6 +133,9 @@ function outputResults(results: Result[], options: { json: boolean; quiet: boole
     console.log(`${result.passed ? '✓' : '✗'} ${result.filename}`)
     for (const v of result.violations) {
       console.log(`  ${v.severity}: ${v.message} [${v.ruleId}] (${v.location.start.line}:${v.location.start.column})`)
+      if (v.suggestion) {
+        console.log(`    → ${v.suggestion}`)
+      }
     }
   }
 

@@ -22,6 +22,7 @@ export default function (register: RegisterFn) {
           if (entry && entry.complexity > max) {
             report({
               message: `Function has cyclomatic complexity of ${entry.complexity} (max: ${max})`,
+              suggestion: `Reduce complexity by extracting conditional branches into their own functions.`,
             })
           }
         },

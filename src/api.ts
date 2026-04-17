@@ -11,6 +11,7 @@ export type {
   Position,
   RegisterFn,
   ReportFn,
+  ReportViolation,
   RuleContext,
   RuleDefinition,
   Selector,

@@ -1,13 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createCommand } from 'commander'
-import { RULES_TEMPLATE } from './claude-rules-template.js'
 import { ConfigLoadError } from '../config/config.js'
 import { globalPaths } from '../config/paths.js'
+import type { Result } from '../core/engine.js'
 import { Guardrail } from '../core/guardrail.js'
+import { RULES_TEMPLATE } from './claude-rules-template.js'
 
 export const GUARDRAIL_HOOK_COMMAND = 'guardrail claude check'
-export const CLAUDE_MD_LINE = 'Guardrail enforces code-quality bounds on every file edit. To add or modify rules, see ~/.guardrail/RULES.md'
+export const CLAUDE_MD_LINE =
+  'Guardrail enforces code-quality bounds on every file edit. To add or modify rules, see ~/.guardrail/RULES.md'
 
 interface HookEntry {
   matcher: string
@@ -45,7 +47,10 @@ export function getPaths(scope: string, cwd: string, home: string): InitPaths {
   }
 }
 
-export function mergeHookIntoSettings(existing: Record<string, unknown>): { settings: Record<string, unknown>; added: boolean } {
+export function mergeHookIntoSettings(existing: Record<string, unknown>): {
+  settings: Record<string, unknown>
+  added: boolean
+} {
   const desired: HookEntry = {
     matcher: 'Edit|Write',
     hooks: [{ type: 'command', command: GUARDRAIL_HOOK_COMMAND, timeout: 30 }],
@@ -82,11 +87,7 @@ export function claudeCommand() {
         .option('--scope <scope>', 'Where to set up: local or global', 'global')
         .action(initClaude)
     )
-    .addCommand(
-      createCommand('check')
-        .description('Run as a Claude Code hook (reads stdin JSON)')
-        .action(checkClaude)
-    )
+    .addCommand(createCommand('check').description('Run as a Claude Code hook (reads stdin JSON)').action(checkClaude))
 }
 
 // --- init ---
@@ -126,9 +127,7 @@ function computeInitPlan(paths: InitPaths): InitAction[] {
 
   // Hook
   const settingsExists = existsSync(paths.settingsJson)
-  const currentSettings = settingsExists
-    ? JSON.parse(readFileSync(paths.settingsJson, 'utf-8'))
-    : {}
+  const currentSettings = settingsExists ? JSON.parse(readFileSync(paths.settingsJson, 'utf-8')) : {}
   const { settings: newSettings, added: hookAdded } = mergeHookIntoSettings(currentSettings)
   if (hookAdded) {
     actions.push({ kind: 'hook', data: JSON.stringify(newSettings, null, 2) + '\n' })
@@ -217,10 +216,31 @@ async function checkClaude(): Promise<void> {
 
   const result = await gr.check([filePath])
   if (!result.every((r) => r.passed)) {
-    process.stderr.write(`${JSON.stringify(result)}\n`)
+    process.stderr.write(formatClaudeViolations(result))
     process.exit(2)
   }
   process.exit(0)
+}
+
+function formatClaudeViolations(results: Result[]): string {
+  const lines: string[] = []
+  for (const result of results) {
+    if (result.violations.length === 0) continue
+    lines.push(`⚠ Guardrail violations in ${result.filename}:`)
+    for (const v of result.violations) {
+      const loc = `${v.location.start.line}:${v.location.start.column}`
+      lines.push(``)
+      lines.push(`  [${v.severity.toUpperCase()}] ${v.ruleId} (${loc})`)
+      lines.push(`  ${v.message}`)
+      if (v.suggestion) {
+        lines.push(`  → ${v.suggestion}`)
+      } else if (v.description) {
+        lines.push(`  → ${v.description}`)
+      }
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
 }
 
 // --- helpers ---

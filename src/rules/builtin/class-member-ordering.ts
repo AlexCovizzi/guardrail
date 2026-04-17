@@ -163,6 +163,7 @@ export default function registerClassMemberOrdering(register: RegisterFn) {
             if (curr.rank < prev.rank) {
               report({
                 message: `${describeMember(curr.classification)} '${curr.classification.name}' should come before ${describeMember(prev.classification)} '${prev.classification.name}'`,
+                suggestion: `Move '${curr.classification.name}' above '${prev.classification.name}'. Under the ${order} convention, ${describeMember(curr.classification)} should come before ${describeMember(prev.classification)}.`,
               })
             }
           }

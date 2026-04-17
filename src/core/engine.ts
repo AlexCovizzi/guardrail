@@ -12,6 +12,7 @@ import type { Timer } from './timer.js'
 export interface Violation {
   ruleId: string
   message: string
+  suggestion?: string
   description: string
   location: Location
   severity: 'error' | 'warning'
@@ -107,10 +108,11 @@ function dispatchEntries(
   const { context, violations, perRule } = ctx
   const node = new Node(rawNode, context.language)
   for (const { rule, fn } of entries) {
-    const report: ReportFn = ({ message }) => {
+    const report: ReportFn = ({ message, suggestion }) => {
       violations.push({
         ruleId: rule.id,
         message,
+        suggestion,
         description: rule.description,
         location: {
           start: { line: rawNode.startPosition.row + 1, column: rawNode.startPosition.column },
@@ -212,18 +214,14 @@ export class Engine {
       }
     }
 
-    const dispatchMap = this.timer.measure('buildDispatch', () =>
-      buildDispatchMap(rules, language)
-    )
+    const dispatchMap = this.timer.measure('buildDispatch', () => buildDispatchMap(rules, language))
 
     const ctx: RuleContext = {
       source,
       filename,
       language,
     }
-    const { violations, nodesVisited, perRule } = this.timer.measure('walk', () =>
-      walkTree(tree, dispatchMap, ctx)
-    )
+    const { violations, nodesVisited, perRule } = this.timer.measure('walk', () => walkTree(tree, dispatchMap, ctx))
 
     for (const [ruleId, ms] of perRule) {
       this.timer.addRuleTime(ruleId, ms)

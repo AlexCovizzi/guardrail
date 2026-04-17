@@ -36,6 +36,7 @@ export default function (register: RegisterFn) {
           if (count <= max) return
           report({
             message: `Class has ${count} methods (max: ${max})`,
+            suggestion: `Split this class into smaller, more focused classes. Extract groups of related methods into their own class.`,
           })
         },
       }

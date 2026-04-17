@@ -19,6 +19,7 @@ export default function (register: RegisterFn) {
           if (paramCount <= max) return
           report({
             message: `Function has ${paramCount} parameters (max: ${max})`,
+            suggestion: `Group related parameters into a single object parameter. Keep unrelated parameters separate.`,
           })
         },
       }

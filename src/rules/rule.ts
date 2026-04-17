@@ -23,7 +23,13 @@ export interface Location {
   end: Position
 }
 
-export type ReportFn = (violation: { message: string }) => void
+export interface ReportViolation {
+  message: string
+  /** An actionable suggestion for how to fix this violation. */
+  suggestion?: string
+}
+
+export type ReportFn = (violation: ReportViolation) => void
 
 export type Selector = SemanticKind | `${SemanticKind}Exit` | `_${string}` | `_${string}Exit`
 

@@ -12,6 +12,7 @@ export default function (register: RegisterFn) {
           if (lines <= max) return
           report({
             message: `Function is ${lines} lines (max: ${max})`,
+            suggestion: `Split this function into ${Math.ceil(lines / max)} or more smaller functions, each under ${max} lines. Extract self-contained steps into their own named functions.`,
           })
         },
       }

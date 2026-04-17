@@ -48,7 +48,10 @@ export default function registerDeclarationOrder(register: RegisterFn) {
           if (!kind) continue
           const rank = rankMap[kind]
           if (prevKind !== null && rank < prevRank) {
-            report({ message: `${kind} should come before ${prevKind}` })
+            report({
+              message: `${kind} should come before ${prevKind}`,
+              suggestion: `Move the ${kind} declaration above the ${prevKind}. Expected order: ${order.join(', ')}.`,
+            })
           }
           prevKind = kind as DeclarationKind
           prevRank = rank

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { mergeHookIntoSettings, mergePromptIntoClaudeMd, getPaths, CLAUDE_MD_LINE, GUARDRAIL_HOOK_COMMAND } from './claude.js'
+import {
+  CLAUDE_MD_LINE,
+  GUARDRAIL_HOOK_COMMAND,
+  getPaths,
+  mergeHookIntoSettings,
+  mergePromptIntoClaudeMd,
+} from './claude.js'
 
 describe('getPaths', () => {
   it('returns global paths for scope=global (default)', () => {
@@ -80,7 +86,7 @@ describe('mergePromptIntoClaudeMd', () => {
   it('appends to existing file', () => {
     const { content, added } = mergePromptIntoClaudeMd('Be concise.\n', CLAUDE_MD_LINE)
     expect(added).toBe(true)
-    expect(content).toBe(`Be concise.\n${CLAUDE_MD_LINE}\n`)
+    expect(content).toBe(`Be concise.\n\n${CLAUDE_MD_LINE}\n`)
   })
 
   it('skips if line already exists', () => {
@@ -93,6 +99,6 @@ describe('mergePromptIntoClaudeMd', () => {
   it('handles file without trailing newline', () => {
     const { content, added } = mergePromptIntoClaudeMd('Be concise.', CLAUDE_MD_LINE)
     expect(added).toBe(true)
-    expect(content).toBe(`Be concise.\n${CLAUDE_MD_LINE}\n`)
+    expect(content).toBe(`Be concise.\n\n${CLAUDE_MD_LINE}\n`)
   })
 })

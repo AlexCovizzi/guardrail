@@ -99,7 +99,10 @@ ctx.tree     // tree-sitter Tree object
 **`report`** — Call this to create a violation:
 
 ```ts
-report({ message: 'Description of the problem' })
+report({
+  message: 'Description of the problem',
+  suggestion: 'Brief, actionable fix guidance',  // optional
+})
 ```
 
 ## Config
@@ -143,6 +146,7 @@ export default function(register: RegisterFn) {
           if (grandparent?.type !== 'call_expression') return
           report({
             message: `Unexpected console call: ${parent.child(2)?.text}`,
+            suggestion: 'Remove the console call or replace with a logging library.',
           })
         },
       }
