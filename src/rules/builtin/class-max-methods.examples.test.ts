@@ -1,16 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RuleConfig } from '../../config/rule-config.js'
-import { matchesAnyNode } from '../../test/helpers.js'
-import { RuleRegistry } from '../registry.js'
-import registerClassMaxMethods from './class-max-methods.js'
-
-function getRule(config: Record<string, any> = {}) {
-  const registry = new RuleRegistry()
-  registerClassMaxMethods(registry.register.bind(registry))
-  const [{ ruleId, definition }] = registry.getEntries()
-  const builder = new RuleConfig(ruleId, config)
-  return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }
-}
+import { collectViolations, getBuiltinRule, matchesAnyNode } from '../../test/helpers.js'
 
 function makeMethods(n: number, indent = '  ') {
   return Array.from({ length: n }, (_, i) => `${indent}method${i + 1}() {}`).join('\n')
@@ -37,13 +26,48 @@ describe('class-max-methods examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 5 })
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 5 })
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(true)
+    })
+
+    it('reports correct method count in violation', async () => {
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
+      const code = `class Foo {\n${makeMethods(6)}\n}`
+      const violations = await collectViolations(rule, code, 'typescript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('6 methods')
+      expect(violations[0]).toContain('max: 5')
+    })
+  })
+
+  describe('javascript', () => {
+    const valid = [
+      {
+        description: 'class with fewer methods than max',
+        code: `class Foo {\n${makeMethods(3)}\n}`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'class exceeding max methods',
+        code: `class Foo {\n${makeMethods(6)}\n}`,
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(true)
     })
   })
 
@@ -67,12 +91,12 @@ describe('class-max-methods examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 5 })
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 5 })
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(true)
     })
   })
@@ -93,13 +117,50 @@ describe('class-max-methods examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 5 })
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
       expect(await matchesAnyNode(rule, code, 'java')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 5 })
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
       expect(await matchesAnyNode(rule, code, 'java')).toBe(true)
+    })
+  })
+
+  describe('kotlin', () => {
+    function makeKtMethods(n: number) {
+      return Array.from({ length: n }, (_, i) => `  fun method${i + 1}() {}`).join('\n')
+    }
+
+    const valid = [
+      {
+        description: 'class with fewer methods than max',
+        code: `class Foo {\n${makeKtMethods(3)}\n}`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'class exceeding max methods',
+        code: `class Foo {\n${makeKtMethods(6)}\n}`,
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(true)
+    })
+  })
+
+  describe('edge cases', () => {
+    it('uses correct default severity', () => {
+      const rule = getBuiltinRule('class-max-methods')
+      expect(rule.severity).toBe('error')
     })
   })
 })

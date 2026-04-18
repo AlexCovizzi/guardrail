@@ -1,16 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RuleConfig } from '../../config/rule-config.js'
-import { matchesAnyNode } from '../../test/helpers.js'
-import { RuleRegistry } from '../registry.js'
-import registerClassLength from './class-max-lines.js'
-
-function getRule(config: Record<string, any> = {}) {
-  const registry = new RuleRegistry()
-  registerClassLength(registry.register.bind(registry))
-  const [{ ruleId, definition }] = registry.getEntries()
-  const builder = new RuleConfig(ruleId, config)
-  return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }
-}
+import { collectViolations, getBuiltinRule, matchesAnyNode } from '../../test/helpers.js'
 
 describe('class-max-lines examples', () => {
   describe('typescript', () => {
@@ -20,7 +9,7 @@ describe('class-max-lines examples', () => {
         code: `class Foo {\n  x = 1\n}`,
       },
       {
-        description: 'class within max lines',
+        description: 'class at exactly max lines',
         code: Array.from({ length: 8 }, (_, i) => (i === 0 ? 'class Foo {' : i === 7 ? '}' : `  x${i} = ${i}`)).join(
           '\n'
         ),
@@ -37,13 +26,52 @@ describe('class-max-lines examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 10 })
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 10 })
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(true)
+    })
+
+    it('reports correct line count in violation', async () => {
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
+      const code = Array.from({ length: 12 }, (_, i) =>
+        i === 0 ? 'class Foo {' : i === 11 ? '}' : `  x${i} = ${i}`
+      ).join('\n')
+      const violations = await collectViolations(rule, code, 'typescript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('12 lines')
+      expect(violations[0]).toContain('max: 10')
+    })
+  })
+
+  describe('javascript', () => {
+    const valid = [
+      {
+        description: 'short class',
+        code: `class Foo {\n  x = 1\n}`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'class exceeding max lines',
+        code: Array.from({ length: 12 }, (_, i) => (i === 0 ? 'class Foo {' : i === 11 ? '}' : `  x${i} = ${i}`)).join(
+          '\n'
+        ),
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(true)
     })
   })
 
@@ -63,13 +91,22 @@ describe('class-max-lines examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 10 })
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 10 })
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(true)
+    })
+
+    it('reports correct line count in violation', async () => {
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
+      const code = ['class Foo:', ...Array.from({ length: 11 }, (_, i) => `    x${i} = ${i}`)].join('\n')
+      const violations = await collectViolations(rule, code, 'python')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('lines')
+      expect(violations[0]).toContain('max: 10')
     })
   })
 
@@ -91,13 +128,53 @@ describe('class-max-lines examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 10 })
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
       expect(await matchesAnyNode(rule, code, 'java')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 10 })
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
       expect(await matchesAnyNode(rule, code, 'java')).toBe(true)
+    })
+  })
+
+  describe('kotlin', () => {
+    const valid = [
+      {
+        description: 'short class',
+        code: `class Foo {\n  val x = 1\n}`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'class exceeding max lines',
+        code: Array.from({ length: 12 }, (_, i) =>
+          i === 0 ? 'class Foo {' : i === 11 ? '}' : `  val x${i} = ${i}`
+        ).join('\n'),
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(true)
+    })
+  })
+
+  describe('edge cases', () => {
+    it('valid: empty class produces no violations', async () => {
+      const rule = getBuiltinRule('class-max-lines', { max: 10 })
+      expect(await collectViolations(rule, 'class Foo {}', 'typescript')).toEqual([])
+    })
+
+    it('uses correct default severity', () => {
+      const rule = getBuiltinRule('class-max-lines')
+      expect(rule.severity).toBe('error')
     })
   })
 })

@@ -1,42 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { RuleConfig } from '../../config/rule-config.js'
-import { collectViolations, matchesAnyNode } from '../../test/helpers.js'
-import { RuleRegistry } from '../registry.js'
-import registerClassMemberOrdering from './class-member-ordering.js'
-
-function getRule(config: Record<string, any> = {}) {
-  const registry = new RuleRegistry()
-  registerClassMemberOrdering(registry.register.bind(registry))
-  const [{ ruleId, definition }] = registry.getEntries()
-  const builder = new RuleConfig(ruleId, config)
-  return {
-    description: definition.description,
-    severity: 'error' as const,
-    visitors: definition.create(builder),
-  }
-}
+import { collectViolations, getBuiltinRule, matchesAnyNode } from '../../test/helpers.js'
 
 describe('class-member-ordering examples', () => {
   it('has correct description', () => {
-    expect(getRule().description).toBe('Class members should be ordered consistently')
+    expect(getBuiltinRule('class-member-ordering').description).toBe('Class members should be ordered consistently')
   })
 
-  it('uses correct severity', () => {
-    expect(getRule().severity).toBe('error')
+  it('uses correct default severity', () => {
+    expect(getBuiltinRule('class-member-ordering').severity).toBe('error')
   })
 
   it('respects custom severity', () => {
-    // Severity is applied at rule creation time, verify via RuleConfig
-    const registry = new RuleRegistry()
-    registerClassMemberOrdering(registry.register.bind(registry))
-    const [{ ruleId, definition }] = registry.getEntries()
-    const builder = new RuleConfig(ruleId, { severity: 'warning' })
-    expect(builder.getSeverity(definition.defaultSeverity)).toBe('warning')
+    const config = new RuleConfig('class-member-ordering', { severity: 'warning' })
+    const rule = getBuiltinRule('class-member-ordering')
+    expect(config.getSeverity(rule.definition.defaultSeverity)).toBe('warning')
   })
 
   describe('typescript fields-first (default)', () => {
     it('valid: correct full order — static fields, instance fields, constructor, static methods, instance methods', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   static sf1 = 1
   public static sf2 = 2
@@ -51,7 +34,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('invalid: method before field', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   pubMethod() {}
   pubField = 1
@@ -62,7 +45,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('invalid: private field before public field (same kind)', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   private privField = 1
   public pubField = 2
@@ -74,7 +57,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('invalid: constructor after method', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   someMethod() {}
   constructor() {}
@@ -85,7 +68,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('invalid: instance field before static field', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   instField = 1
   static statField = 2
@@ -97,19 +80,19 @@ describe('class-member-ordering examples', () => {
     })
 
     it('valid: empty class produces no violations', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {}`
       expect(await collectViolations(rule, code, 'typescript')).toEqual([])
     })
 
     it('valid: single member produces no violations', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo { x = 1 }`
       expect(await collectViolations(rule, code, 'typescript')).toEqual([])
     })
 
     it('valid: same-rank members in any order produce no violations', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   a = 1
   b = 2
@@ -121,7 +104,7 @@ describe('class-member-ordering examples', () => {
 
   describe('typescript accessor-first', () => {
     it('valid: correct order — all public, then protected, then private', async () => {
-      const rule = getRule({ order: 'accessor-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'accessor-first' })
       const code = `class Foo {
   public pubField = 1
   public pubMethod() {}
@@ -133,8 +116,8 @@ describe('class-member-ordering examples', () => {
       expect(await collectViolations(rule, code, 'typescript')).toEqual([])
     })
 
-    it('invalid: private before public (even though field-before-method would be correct under fields-first)', async () => {
-      const rule = getRule({ order: 'accessor-first' })
+    it('invalid: private before public', async () => {
+      const rule = getBuiltinRule('class-member-ordering', { order: 'accessor-first' })
       const code = `class Foo {
   private privField = 1
   public pubMethod() {}
@@ -146,7 +129,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('invalid: protected before public', async () => {
-      const rule = getRule({ order: 'accessor-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'accessor-first' })
       const code = `class Foo {
   protected protField = 1
   public pubField = 2
@@ -158,8 +141,8 @@ describe('class-member-ordering examples', () => {
   })
 
   describe('typescript static-first', () => {
-    it('valid: correct order — all static (fields then methods), then all instance', async () => {
-      const rule = getRule({ order: 'static-first' })
+    it('valid: correct order — all static, then all instance', async () => {
+      const rule = getBuiltinRule('class-member-ordering', { order: 'static-first' })
       const code = `class Foo {
   static statField = 1
   static statMethod() {}
@@ -170,7 +153,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('invalid: instance before static', async () => {
-      const rule = getRule({ order: 'static-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'static-first' })
       const code = `class Foo {
   instField = 1
   static statField = 2
@@ -184,7 +167,7 @@ describe('class-member-ordering examples', () => {
 
   describe('javascript #private members', () => {
     it('invalid: #private method before public method', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   #privateMethod() {}
   publicMethod() {}
@@ -196,7 +179,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('invalid: #private field before public field', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   #priv = 1
   pub = 2
@@ -208,7 +191,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('valid: correct fields-first order with #private members', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   static s = 1
   pub = 2
@@ -221,7 +204,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('valid: correct order in javascript', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   static statField = 1
   instField = 2
@@ -234,17 +217,16 @@ describe('class-member-ordering examples', () => {
 
   describe('static blocks and index signatures', () => {
     it('valid: static block after static fields (fields-first)', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   static x = 1
   static { /* init */ }
 }`
-      // static block is rank 0 (static field, public), same as static x — no violation
       expect(await collectViolations(rule, code, 'typescript')).toEqual([])
     })
 
     it('valid: static block and index signature in correct position', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   static x = 1
   static { /* init */ }
@@ -257,21 +239,8 @@ describe('class-member-ordering examples', () => {
   })
 
   describe('violation messages', () => {
-    it('describes protected static field correctly', async () => {
-      const rule = getRule({ order: 'fields-first' })
-      const code = `class Foo {
-  protected static ps1 = 1
-  public ps2 = 2
-}`
-      // protected static field (rank: kind=0*100 + static=0*10 + protected=1*1 = 1)
-      // vs public instance field (rank: kind=0*100 + instance=1*10 + public=0*1 = 10)
-      // Actually protected static < public instance → violation
-      const violations = await collectViolations(rule, code, 'typescript')
-      expect(violations.length).toBeGreaterThanOrEqual(0) // depends on actual rank comparison
-    })
-
     it('describes constructor in violation message', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   method() {}
   constructor() {}
@@ -283,7 +252,7 @@ describe('class-member-ordering examples', () => {
     })
 
     it('describes private instance method in violation message', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo {
   private privMethod() {}
   public pubMethod() {}
@@ -297,13 +266,13 @@ describe('class-member-ordering examples', () => {
 
   describe('matchesAnyNode compatibility', () => {
     it('valid: correct order returns false', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo { x = 1; constructor() {} method() {} }`
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(false)
     })
 
     it('invalid: wrong order returns true', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `class Foo { method() {} x = 1 }`
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(true)
     })
@@ -311,7 +280,7 @@ describe('class-member-ordering examples', () => {
 
   describe('abstract classes', () => {
     it('valid: abstract method signature after regular methods (fields-first)', async () => {
-      const rule = getRule({ order: 'fields-first' })
+      const rule = getBuiltinRule('class-member-ordering', { order: 'fields-first' })
       const code = `abstract class Foo {
   x = 1
   constructor() {}
@@ -323,7 +292,7 @@ describe('class-member-ordering examples', () => {
 
   describe('default preset', () => {
     it('defaults to fields-first when no order specified', async () => {
-      const rule = getRule()
+      const rule = getBuiltinRule('class-member-ordering')
       const code = `class Foo {
   method() {}
   field = 1

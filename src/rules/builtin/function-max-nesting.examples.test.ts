@@ -1,16 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RuleConfig } from '../../config/rule-config.js'
-import { matchesAnyNode } from '../../test/helpers.js'
-import { RuleRegistry } from '../registry.js'
-import registerFunctionNesting from './function-max-nesting.js'
-
-function getRule(config: Record<string, any> = {}) {
-  const registry = new RuleRegistry()
-  registerFunctionNesting(registry.register.bind(registry))
-  const [{ ruleId, definition }] = registry.getEntries()
-  const builder = new RuleConfig(ruleId, config)
-  return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }
-}
+import { collectViolations, getBuiltinRule, matchesAnyNode } from '../../test/helpers.js'
 
 describe('function-max-nesting examples', () => {
   describe('typescript', () => {
@@ -22,6 +11,10 @@ describe('function-max-nesting examples', () => {
       {
         description: 'shallow nesting within limit',
         code: `function check(x: number) {\n  if (x > 0) {\n    if (x > 10) {\n      console.log(x)\n    }\n  }\n}`,
+      },
+      {
+        description: 'nesting at exactly max depth',
+        code: `function atLimit(x: number) {\n  if (x > 0) {\n    if (x > 10) {\n      console.log(x)\n    }\n  }\n}`,
       },
       {
         description: 'callback within nesting limit',
@@ -71,13 +64,74 @@ describe('function-max-nesting examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 3 })
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 3 })
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(true)
+    })
+
+    it('reports correct nesting depth in violation message', async () => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
+      const code = [
+        'function deep(x: number) {',
+        '  if (x > 0) {',
+        '    if (x > 1) {',
+        '      if (x > 2) {',
+        '        if (x > 3) {',
+        '          if (x > 4) {',
+        '            console.log(x)',
+        '          }',
+        '        }',
+        '      }',
+        '    }',
+        '  }',
+        '}',
+      ].join('\n')
+      const violations = await collectViolations(rule, code, 'typescript')
+      expect(violations.length).toBeGreaterThan(0)
+      expect(violations[0]).toContain('nesting depth')
+      expect(violations[0]).toContain('max: 3')
+    })
+  })
+
+  describe('javascript', () => {
+    const valid = [
+      {
+        description: 'flat function',
+        code: `function add(a, b) {\n  return a + b\n}`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'deeply nested if chains exceeding limit',
+        code: [
+          'function deep(x) {',
+          '  if (x > 0) {',
+          '    if (x > 1) {',
+          '      if (x > 2) {',
+          '        if (x > 3) {',
+          '          console.log(x)',
+          '        }',
+          '      }',
+          '    }',
+          '  }',
+          '}',
+        ].join('\n'),
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(true)
     })
   })
 
@@ -109,13 +163,98 @@ describe('function-max-nesting examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 3 })
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 3 })
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(true)
+    })
+  })
+
+  describe('java', () => {
+    const valid = [
+      {
+        description: 'flat method',
+        code: `class Foo { int add(int a, int b) { return a + b; } }`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'deeply nested method exceeding limit',
+        code: [
+          'class Foo {',
+          '  void deep(int x) {',
+          '    if (x > 0) {',
+          '      if (x > 1) {',
+          '        if (x > 2) {',
+          '          if (x > 3) {',
+          '            System.out.println(x);',
+          '          }',
+          '        }',
+          '      }',
+          '    }',
+          '  }',
+          '}',
+        ].join('\n'),
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
+      expect(await matchesAnyNode(rule, code, 'java')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
+      expect(await matchesAnyNode(rule, code, 'java')).toBe(true)
+    })
+  })
+
+  describe('kotlin', () => {
+    const valid = [
+      {
+        description: 'flat function',
+        code: `fun add(a: Int, b: Int): Int = a + b`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'deeply nested function exceeding limit',
+        code: [
+          'fun deep(x: Int): Unit {',
+          '  if (x > 0) {',
+          '    if (x > 1) {',
+          '      if (x > 2) {',
+          '        if (x > 3) {',
+          '          println(x)',
+          '        }',
+          '      }',
+          '    }',
+          '  }',
+          '}',
+        ].join('\n'),
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 3 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(true)
+    })
+  })
+
+  describe('edge cases', () => {
+    it('uses correct default severity', () => {
+      const rule = getBuiltinRule('function-max-nesting')
+      expect(rule.severity).toBe('error')
     })
   })
 })

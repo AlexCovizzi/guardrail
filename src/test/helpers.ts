@@ -1,8 +1,11 @@
+import { RuleConfig } from '../config/rule-config.js'
 import { resolveSelector } from '../core/engine.js'
 import type { LanguageDefinition } from '../core/language.js'
 import { Node } from '../core/node.js'
 import { Parser } from '../core/parser.js'
-import type { Handler, Rule, RuleContext } from '../rules/rule.js'
+import { registerBuiltins } from '../rules/builtin/index.js'
+import { RuleRegistry } from '../rules/registry.js'
+import type { Handler, Rule, RuleContext, RuleDefinition } from '../rules/rule.js'
 import { findLanguage } from './fixtures.js'
 
 let parserInstance: Parser | null = null
@@ -63,7 +66,6 @@ export async function collectViolations(
     source,
     filename: `file.${langDef.name}`,
     language: langDef,
-    project: { search: () => [] },
   }
   const dispatchMap = buildDispatchMap(rule.visitors, langDef)
   const root = new Node(tree.rootNode, langDef)
@@ -92,4 +94,21 @@ export async function matchesAnyNode(
 ): Promise<boolean> {
   const violations = await collectViolations(rule, source, language)
   return violations.length > 0
+}
+
+export function getBuiltinRule(
+  ruleId: string,
+  config: Record<string, any> = {}
+): Omit<Rule, 'id'> & { definition: RuleDefinition } {
+  const registry = new RuleRegistry()
+  registerBuiltins(registry.register.bind(registry))
+  const entry = registry.getEntries().find((e) => e.ruleId === ruleId)
+  if (!entry) throw new Error(`Unknown builtin rule: ${ruleId}`)
+  const builder = new RuleConfig(ruleId, config)
+  return {
+    description: entry.definition.description,
+    severity: (entry.definition.defaultSeverity ?? 'error') as 'error' | 'warning',
+    visitors: entry.definition.create(builder),
+    definition: entry.definition,
+  }
 }

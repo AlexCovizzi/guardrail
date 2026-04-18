@@ -1,16 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RuleConfig } from '../../config/rule-config.js'
-import { matchesAnyNode } from '../../test/helpers.js'
-import { RuleRegistry } from '../registry.js'
-import registerFunctionMaxParams from './function-max-params.js'
-
-function getRule(config: Record<string, any> = {}) {
-  const registry = new RuleRegistry()
-  registerFunctionMaxParams(registry.register.bind(registry))
-  const [{ ruleId, definition }] = registry.getEntries()
-  const builder = new RuleConfig(ruleId, config)
-  return { description: definition.description, severity: 'error' as const, visitors: definition.create(builder) }
-}
+import { collectViolations, getBuiltinRule, matchesAnyNode } from '../../test/helpers.js'
 
 describe('function-max-params examples', () => {
   describe('typescript', () => {
@@ -49,13 +38,48 @@ describe('function-max-params examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 4 })
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 4 })
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
       expect(await matchesAnyNode(rule, code, 'typescript')).toBe(true)
+    })
+
+    it('reports correct parameter count in violation message', async () => {
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
+      const code = `function create(id: string, name: string, age: number, active: boolean, role: string) {}`
+      const violations = await collectViolations(rule, code, 'typescript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('5 parameters')
+      expect(violations[0]).toContain('max: 4')
+    })
+  })
+
+  describe('javascript', () => {
+    const valid = [
+      {
+        description: 'function with 2 params',
+        code: `function add(a, b) { return a + b }`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'function with 5 params',
+        code: `function create(id, name, age, active, role) {}`,
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(true)
     })
   })
 
@@ -75,12 +99,12 @@ describe('function-max-params examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 4 })
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 4 })
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
       expect(await matchesAnyNode(rule, code, 'python')).toBe(true)
     })
   })
@@ -109,13 +133,46 @@ describe('function-max-params examples', () => {
     ]
 
     it.each(valid)('valid: $description', async ({ code }) => {
-      const rule = getRule({ max: 4 })
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
       expect(await matchesAnyNode(rule, code, 'java')).toBe(false)
     })
 
     it.each(invalid)('invalid: $description', async ({ code }) => {
-      const rule = getRule({ max: 4 })
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
       expect(await matchesAnyNode(rule, code, 'java')).toBe(true)
+    })
+  })
+
+  describe('kotlin', () => {
+    const valid = [
+      {
+        description: 'function with 2 params',
+        code: `fun add(a: Int, b: Int): Int = a + b`,
+      },
+    ]
+
+    const invalid = [
+      {
+        description: 'function with 5 params',
+        code: `fun create(id: String, name: String, age: Int, active: Boolean, role: String) {}`,
+      },
+    ]
+
+    it.each(valid)('valid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(false)
+    })
+
+    it.each(invalid)('invalid: $description', async ({ code }) => {
+      const rule = getBuiltinRule('function-max-params', { max: 4 })
+      expect(await matchesAnyNode(rule, code, 'kotlin')).toBe(true)
+    })
+  })
+
+  describe('edge cases', () => {
+    it('uses correct default severity', () => {
+      const rule = getBuiltinRule('function-max-params')
+      expect(rule.severity).toBe('error')
     })
   })
 })
