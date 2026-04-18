@@ -1,6 +1,7 @@
 import { RuleConfig } from '../config/rule-config.js'
 import { resolveSelector } from '../core/engine.js'
 import type { LanguageDefinition } from '../core/language.js'
+import type { NodePattern } from '../core/languages/types.js'
 import { Node } from '../core/node.js'
 import { Parser } from '../core/parser.js'
 import { registerBuiltins } from '../rules/builtin/index.js'
@@ -17,17 +18,19 @@ async function getParser(): Promise<Parser> {
   return parserInstance
 }
 
+type TestDispatchEntry = { fn: Handler; pattern?: NodePattern }
+
 function buildDispatchMap(
   visitors: Partial<Record<string, Handler>>,
   langDef: LanguageDefinition
-): Map<string, Handler[]> {
-  const map = new Map<string, Handler[]>()
+): Map<string, TestDispatchEntry[]> {
+  const map = new Map<string, TestDispatchEntry[]>()
   for (const [rawKey, fn] of Object.entries(visitors) as [string, Handler | undefined][]) {
     if (fn == null) continue
-    for (const { nodeType, isExit } of resolveSelector(rawKey, langDef)) {
+    for (const { nodeType, isExit, pattern } of resolveSelector(rawKey, langDef)) {
       const key = isExit ? `${nodeType}:exit` : nodeType
       if (!map.has(key)) map.set(key, [])
-      map.get(key)?.push(fn)
+      map.get(key)?.push({ fn, pattern })
     }
   }
   return map
@@ -36,15 +39,17 @@ function buildDispatchMap(
 function collectHandlers(
   node: Node,
   isExit: boolean,
-  dispatchMap: Map<string, Handler[]>,
+  dispatchMap: Map<string, TestDispatchEntry[]>,
   context: RuleContext
 ): string[] {
   const key = isExit ? `${node.type}:exit` : node.type
-  const handlers = dispatchMap.get(key)
-  if (!handlers) return []
+  const entries = dispatchMap.get(key)
+  if (!entries) return []
   const messages: string[] = []
-  for (const handler of handlers) {
-    handler(node, context, ({ message }) => {
+  for (const { fn, pattern } of entries) {
+    // Skip if the node doesn't satisfy hasChild/lacksChild constraints
+    if (pattern && !node.matchesPattern(pattern)) continue
+    fn(node, context, ({ message }) => {
       messages.push(message)
     })
   }

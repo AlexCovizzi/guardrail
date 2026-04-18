@@ -26,7 +26,7 @@ export class Node {
     const patterns = this.lang.kinds?.[kind]
     if (!patterns) return false
     for (const pattern of patterns) {
-      if (this.matchPattern(pattern)) return true
+      if (this.matchesPattern(pattern)) return true
     }
     return false
   }
@@ -40,7 +40,11 @@ export class Node {
     return result
   }
 
-  private matchPattern(pattern: NodePattern): boolean {
+  /**
+   * Test whether this node matches a NodePattern (type + optional constraints).
+   * Used by the dispatch engine to enforce hasChild/lacksChild constraints.
+   */
+  matchesPattern(pattern: NodePattern): boolean {
     if (this.type !== pattern.type) return false
     if (pattern.hasChild) {
       const required = Array.isArray(pattern.hasChild) ? pattern.hasChild : [pattern.hasChild]

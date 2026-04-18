@@ -8,7 +8,9 @@ import registerFunctionMaxLines from './function-max-lines.js'
 import registerFunctionMaxNesting from './function-max-nesting.js'
 import registerFunctionMaxParams from './function-max-params.js'
 import registerMaxFileLines from './max-file-lines.js'
+import registerNamingConvention from './naming-convention.js'
 import registerNoDuplicateImports from './no-duplicate-imports.js'
+import registerNoMagicNumbers from './no-magic-numbers.js'
 
 export function registerBuiltins(register: RegisterFn): void {
   registerClassMaxLines(register)
@@ -20,5 +22,7 @@ export function registerBuiltins(register: RegisterFn): void {
   registerFunctionMaxNesting(register)
   registerFunctionMaxParams(register)
   registerMaxFileLines(register)
+  registerNamingConvention(register)
   registerNoDuplicateImports(register)
+  registerNoMagicNumbers(register)
 }

@@ -3,51 +3,19 @@ import type { Config } from '../config/config.js'
 import type { RuleRegistry } from '../rules/registry.js'
 import type { Handler, Location, ReportFn, Rule, RuleContext } from '../rules/rule.js'
 import { expandInputs } from './files.js'
-import { detectLanguage, type LanguageDefinition, nodeTypesFor } from './language.js'
-import type { SemanticKind } from './languages/types.js'
+import { detectLanguage, type LanguageDefinition } from './language.js'
+import type { NodePattern } from './languages/types.js'
 import { Node } from './node.js'
 import { ParseError, type Parser } from './parser.js'
 import type { Timer } from './timer.js'
 
-export interface Violation {
-  ruleId: string
-  message: string
-  suggestion?: string
-  description: string
-  location: Location
-  severity: 'error' | 'warning'
-}
-
-export interface Result {
-  filename: string
-  violations: Violation[]
-  passed: boolean
-}
+// --- Non-export declarations (wildcard position in declaration order) ---
 
 function camelToSnake(s: string): string {
   return s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
 }
 
-export function resolveSelector(
-  key: string,
-  language: LanguageDefinition
-): Array<{ nodeType: string; isExit: boolean }> {
-  let isExit = false
-  let k = key
-  if (k.endsWith('Exit')) {
-    k = k.slice(0, -4)
-    isExit = true
-  }
-  if (k.startsWith('_')) {
-    return [{ nodeType: camelToSnake(k.slice(1)), isExit }]
-  }
-  if (k in language.kinds) {
-    return nodeTypesFor(language, k as SemanticKind).map((nodeType) => ({ nodeType, isExit }))
-  }
-  return []
-}
-
-type DispatchEntry = { rule: Rule; fn: Handler }
+type DispatchEntry = { rule: Rule; fn: Handler; pattern?: NodePattern }
 type DispatchMap = Map<string, DispatchEntry[]>
 
 function buildDispatchMap(rules: Rule[], language: LanguageDefinition): DispatchMap {
@@ -56,10 +24,10 @@ function buildDispatchMap(rules: Rule[], language: LanguageDefinition): Dispatch
     for (const [rawKey, fn] of Object.entries(rule.visitors)) {
       if (fn == null) continue
       const resolved = resolveSelector(rawKey, language)
-      for (const { nodeType, isExit } of resolved) {
+      for (const { nodeType, isExit, pattern } of resolved) {
         const key = isExit ? `${nodeType}:exit` : nodeType
         if (!map.has(key)) map.set(key, [])
-        map.get(key)?.push({ rule, fn })
+        map.get(key)?.push({ rule, fn, pattern })
       }
     }
   }
@@ -107,7 +75,9 @@ function dispatchEntries(
 ): void {
   const { context, violations, perRule } = ctx
   const node = new Node(rawNode, context.language)
-  for (const { rule, fn } of entries) {
+  for (const { rule, fn, pattern } of entries) {
+    // Skip if the node doesn't satisfy the selector's hasChild/lacksChild constraints
+    if (pattern && !node.matchesPattern(pattern)) continue
     const report: ReportFn = ({ message, suggestion, node: reportNode }) => {
       const target = reportNode ? reportNode.unwrap() : rawNode
       violations.push({
@@ -135,6 +105,48 @@ interface ParsedFile {
   tree: any
   lines: number
   chars: number
+}
+
+// --- Export declarations (export position in declaration order) ---
+
+export interface Violation {
+  ruleId: string
+  message: string
+  suggestion?: string
+  description: string
+  location: Location
+  severity: 'error' | 'warning'
+}
+
+export interface Result {
+  filename: string
+  violations: Violation[]
+  passed: boolean
+}
+
+export function resolveSelector(
+  key: string,
+  language: LanguageDefinition
+): Array<{ nodeType: string; isExit: boolean; pattern?: NodePattern }> {
+  let isExit = false
+  let k = key
+  if (k.endsWith('Exit')) {
+    k = k.slice(0, -4)
+    isExit = true
+  }
+  if (k.startsWith('_')) {
+    return [{ nodeType: camelToSnake(k.slice(1)), isExit }]
+  }
+  if (k in language.kinds) {
+    const patterns = language.kinds[k as keyof typeof language.kinds]
+    if (!patterns) return []
+    return patterns.map((p) => ({
+      nodeType: p.type,
+      isExit,
+      pattern: p.hasChild || p.lacksChild ? p : undefined,
+    }))
+  }
+  return []
 }
 
 export class Engine {

@@ -9,7 +9,9 @@ export default {
     'class-max-lines': { max: 500 },
     'class-max-methods': { max: 20 },
     'max-file-lines': { max: 300 },
+    'naming-convention': { style: 'camelCase' },
     'no-duplicate-imports': {},
+    'no-magic-numbers': { ignore: '0,1,-1' },
     'declaration-order': { order: ['import', '*', 'export'] },
   },
   ignore: [
