@@ -1,7 +1,7 @@
 // Example custom rule: enforce naming convention for exported functions
 // Place in .guardrail/rules/exported-naming.ts for a project-local rule
 // or ~/.guardrail/rules/exported-naming.ts for a global rule
-import type { RegisterFn, SyntaxNode } from '@alexcvzz/guardrail'
+import type { RegisterFn, Node } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('exported-naming', {
@@ -12,7 +12,7 @@ export default function(register: RegisterFn) {
       const re = new RegExp(pattern)
 
       return {
-        function(node: SyntaxNode, ctx, report) {
+        function(node: Node, ctx, report) {
           if (node.parent?.type !== 'export_statement' && node.parent?.parent?.type !== 'export_statement') return
 
           let name: string | undefined

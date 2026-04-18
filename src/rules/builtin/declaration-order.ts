@@ -93,15 +93,10 @@ export default function registerDeclarationOrder(register: RegisterFn) {
           }
 
           if (unlistedBuffer.length > 0 && hasWildcard) {
-            const validZone =
-              prevListedKind === null
-                ? leadingStar
-                : starBetween.has(`${prevListedKind}:${kind}`)
+            const validZone = prevListedKind === null ? leadingStar : starBetween.has(`${prevListedKind}:${kind}`)
 
             if (!validZone) {
-              const where = prevListedKind
-                ? `between ${prevListedKind} and ${kind}`
-                : `before ${kind}`
+              const where = prevListedKind ? `between ${prevListedKind} and ${kind}` : `before ${kind}`
               for (const unlistedNode of unlistedBuffer) {
                 report({
                   message: `Declaration appears ${where} but that position has no wildcard in the order`,

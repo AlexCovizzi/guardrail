@@ -132,7 +132,9 @@ function outputResults(results: Result[], options: { json: boolean; quiet: boole
     if (options.quiet && result.violations.length === 0) continue
     console.log(`${result.passed ? '✓' : '✗'} ${result.filename}`)
     for (const v of result.violations) {
-      console.log(`  ${v.severity}: ${v.message} [${v.ruleId}] (${v.location.start.line}:${v.location.start.column}-${v.location.end.line}:${v.location.end.column})`)
+      console.log(
+        `  ${v.severity}: ${v.message} [${v.ruleId}] (${v.location.start.line}:${v.location.start.column}-${v.location.end.line}:${v.location.end.column})`
+      )
       if (v.suggestion) {
         console.log(`    → ${v.suggestion}`)
       }

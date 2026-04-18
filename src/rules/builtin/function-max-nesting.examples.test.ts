@@ -23,6 +23,14 @@ describe('function-max-nesting examples', () => {
         description: 'shallow nesting within limit',
         code: `function check(x: number) {\n  if (x > 0) {\n    if (x > 10) {\n      console.log(x)\n    }\n  }\n}`,
       },
+      {
+        description: 'callback within nesting limit',
+        code: `function process(data: number[]) {\n  return data.filter(x => x > 0)\n}`,
+      },
+      {
+        description: 'nested callback with branch within limit',
+        code: `function process(data: number[]) {\n  return data.filter(x => {\n    if (x > 0) {\n      return true\n    }\n    return false\n  })\n}`,
+      },
     ]
 
     const invalid = [
@@ -38,6 +46,22 @@ describe('function-max-nesting examples', () => {
           '            console.log(x)',
           '          }',
           '        }',
+          '      }',
+          '    }',
+          '  }',
+          '}',
+        ].join('\n'),
+      },
+      {
+        description: 'function is nested deep enough to exceed limit',
+        code: [
+          'function outer() {',
+          '  if (a) {',
+          '    if (b) {',
+          '      if (c) {',
+          '        return data.map(x => {',
+          '          return x',
+          '        })',
           '      }',
           '    }',
           '  }',

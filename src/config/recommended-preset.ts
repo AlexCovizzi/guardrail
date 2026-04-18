@@ -5,8 +5,11 @@ export default {
     'function-max-lines': { max: 60 },
     'function-max-complexity': { max: 10 },
     'function-max-params': { max: 4 },
+    'function-max-nesting': { max: 4 },
     'class-max-lines': { max: 500 },
     'class-max-methods': { max: 20 },
+    'max-file-lines': { max: 300 },
+    'no-duplicate-imports': {},
     'declaration-order': { order: ['import', '*', 'export'] },
   },
   ignore: [
