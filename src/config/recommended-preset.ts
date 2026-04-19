@@ -12,7 +12,7 @@ export default {
     'naming-convention': { style: 'camelCase' },
     'no-duplicate-imports': {},
     'no-magic-numbers': { ignore: '0,1,-1' },
-    'declaration-order': { order: ['import', '*', 'export'] },
+    'declaration-order': { order: ['import', '*'] },
   },
   ignore: [
     '.git',

@@ -1,102 +1,13 @@
 import { readFileSync } from 'node:fs'
+import type * as TreeSitter from 'web-tree-sitter'
 import type { Config } from '../config/config.js'
 import type { RuleRegistry } from '../rules/registry.js'
-import type { Handler, Location, ReportFn, Rule, RuleContext } from '../rules/rule.js'
+import type { RuleContext } from '../rules/rule.js'
+import { RuleDispatcher, type Violation } from './dispatcher.js'
 import { expandInputs } from './files.js'
 import { detectLanguage, type LanguageDefinition } from './language.js'
-import type { NodePattern } from './languages/types.js'
-import { Node } from './node.js'
 import { ParseError, type Parser } from './parser.js'
 import type { Timer } from './timer.js'
-
-// --- Non-export declarations (wildcard position in declaration order) ---
-
-function camelToSnake(s: string): string {
-  return s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
-}
-
-type DispatchEntry = { rule: Rule; fn: Handler; pattern?: NodePattern }
-type DispatchMap = Map<string, DispatchEntry[]>
-
-function buildDispatchMap(rules: Rule[], language: LanguageDefinition): DispatchMap {
-  const map: DispatchMap = new Map()
-  for (const rule of rules) {
-    for (const [rawKey, fn] of Object.entries(rule.visitors)) {
-      if (fn == null) continue
-      const resolved = resolveSelector(rawKey, language)
-      for (const { nodeType, isExit, pattern } of resolved) {
-        const key = isExit ? `${nodeType}:exit` : nodeType
-        if (!map.has(key)) map.set(key, [])
-        map.get(key)?.push({ rule, fn, pattern })
-      }
-    }
-  }
-  return map
-}
-
-interface WalkResult {
-  violations: Violation[]
-  nodesVisited: number
-  perRule: Map<string, number>
-}
-
-function walkTree(tree: any, dispatchMap: DispatchMap, context: RuleContext): WalkResult {
-  const violations: Violation[] = []
-  const perRule = new Map<string, number>()
-  let nodesVisited = 0
-  const stack: Array<[any, boolean]> = [[tree.rootNode, false]]
-
-  while (stack.length > 0) {
-    const [rawNode, isExit] = stack.pop()!
-    const key = isExit ? `${rawNode.type}:exit` : rawNode.type
-    const entries = dispatchMap.get(key)
-    nodesVisited++
-
-    if (entries) {
-      dispatchEntries(entries, rawNode, { context, violations, perRule })
-    }
-
-    if (!isExit) {
-      stack.push([rawNode, true])
-      for (let i = rawNode.childCount - 1; i >= 0; i--) {
-        const child = rawNode.child(i)
-        if (child) stack.push([child, false])
-      }
-    }
-  }
-
-  return { violations, nodesVisited, perRule }
-}
-
-function dispatchEntries(
-  entries: DispatchEntry[],
-  rawNode: any,
-  ctx: { context: RuleContext; violations: Violation[]; perRule: Map<string, number> }
-): void {
-  const { context, violations, perRule } = ctx
-  const node = new Node(rawNode, context.language)
-  for (const { rule, fn, pattern } of entries) {
-    // Skip if the node doesn't satisfy the selector's hasChild/lacksChild constraints
-    if (pattern && !node.matchesPattern(pattern)) continue
-    const report: ReportFn = ({ message, suggestion, node: reportNode }) => {
-      const target = reportNode ? reportNode.unwrap() : rawNode
-      violations.push({
-        ruleId: rule.id,
-        message,
-        suggestion,
-        description: rule.description,
-        location: {
-          start: { line: target.startPosition.row + 1, column: target.startPosition.column },
-          end: { line: target.endPosition.row + 1, column: target.endPosition.column },
-        },
-        severity: rule.severity,
-      })
-    }
-    const start = performance.now()
-    fn(node, context, report)
-    perRule.set(rule.id, (perRule.get(rule.id) ?? 0) + (performance.now() - start))
-  }
-}
 
 interface ParsedFile {
   filename: string
@@ -107,46 +18,12 @@ interface ParsedFile {
   chars: number
 }
 
-// --- Export declarations (export position in declaration order) ---
-
-export interface Violation {
-  ruleId: string
-  message: string
-  suggestion?: string
-  description: string
-  location: Location
-  severity: 'error' | 'warning'
-}
+export type { Violation }
 
 export interface Result {
   filename: string
   violations: Violation[]
   passed: boolean
-}
-
-export function resolveSelector(
-  key: string,
-  language: LanguageDefinition
-): Array<{ nodeType: string; isExit: boolean; pattern?: NodePattern }> {
-  let isExit = false
-  let k = key
-  if (k.endsWith('Exit')) {
-    k = k.slice(0, -4)
-    isExit = true
-  }
-  if (k.startsWith('_')) {
-    return [{ nodeType: camelToSnake(k.slice(1)), isExit }]
-  }
-  if (k in language.kinds) {
-    const patterns = language.kinds[k as keyof typeof language.kinds]
-    if (!patterns) return []
-    return patterns.map((p) => ({
-      nodeType: p.type,
-      isExit,
-      pattern: p.hasChild || p.lacksChild ? p : undefined,
-    }))
-  }
-  return []
 }
 
 export class Engine {
@@ -187,7 +64,7 @@ export class Engine {
     if (!language) return { filename: file, source: '', language, tree: null, lines: 0, chars: 0 }
 
     let source: string
-    let tree: any
+    let tree: TreeSitter.Tree
     try {
       source = readFileSync(file, 'utf-8')
       tree = await this.parser.parse(file, source)
@@ -227,14 +104,14 @@ export class Engine {
       }
     }
 
-    const dispatchMap = this.timer.measure('buildDispatch', () => buildDispatchMap(rules, language))
+    const dispatcher = this.timer.measure('buildDispatch', () => new RuleDispatcher(rules, language))
 
     const ctx: RuleContext = {
       source,
       filename,
       language,
     }
-    const { violations, nodesVisited, perRule } = this.timer.measure('walk', () => walkTree(tree, dispatchMap, ctx))
+    const { violations, nodesVisited, perRule } = this.timer.measure('walk', () => dispatcher.walk(tree, ctx))
 
     for (const [ruleId, ms] of perRule) {
       this.timer.addRuleTime(ruleId, ms)

@@ -1,27 +1,5 @@
 import type { TimingMetrics } from './timer.js'
 
-export interface TimingReport {
-  marks: Array<{ name: string; durationMs: number }>
-  startup: number
-  check: number
-  total: number
-  filesChecked: number
-  totalLines: number
-  totalChars: number
-  totalNodes: number
-  avgPerFile: number
-  avgPerLine: number
-  avgPerChar: number
-  breakdown: {
-    parse: number
-    createRules: number
-    buildDispatch: number
-    walkOverhead: number
-    ruleExec: number
-  }
-  ruleAverages: Array<{ ruleId: string; avgMs: number; totalMs: number; files: number }>
-}
-
 function markNamed(metrics: TimingMetrics, name: string): number {
   return metrics.marks.find((m) => m.name === name)?.durationMs ?? 0
 }
@@ -50,6 +28,64 @@ function aggregateRules(ruleTotals: TimingMetrics['ruleTotals']): {
   return { ruleAverages, totalRuleExec }
 }
 
+function aggregateMarks(metrics: TimingMetrics): Array<{ name: string; durationMs: number }> {
+  const seen = new Map<string, number>()
+  const order: string[] = []
+  for (const m of metrics.marks) {
+    if (seen.has(m.name)) {
+      seen.set(m.name, seen.get(m.name)! + m.durationMs)
+    } else {
+      seen.set(m.name, m.durationMs)
+      order.push(m.name)
+    }
+  }
+  return order.map((name) => ({ name, durationMs: seen.get(name)! }))
+}
+
+function formatBreakdown(lines: string[], report: TimingReport): void {
+  const bd = report.breakdown
+  const total = bd.parse + bd.createRules + bd.buildDispatch + bd.walkOverhead + bd.ruleExec
+  if (total <= 0) return
+
+  const pct = (v: number) => `${((v / total) * 100).toFixed(0)}%`
+  const w = 18
+
+  lines.push('')
+  lines.push('check breakdown:')
+  lines.push(`${'  parse'.padEnd(w)} ${formatMs(bd.parse).padStart(10)}  ${pct(bd.parse)}`)
+  lines.push(`${'  walk overhead'.padEnd(w)} ${formatMs(bd.walkOverhead).padStart(10)}  ${pct(bd.walkOverhead)}`)
+  lines.push(`${'  rule execution'.padEnd(w)} ${formatMs(bd.ruleExec).padStart(10)}  ${pct(bd.ruleExec)}`)
+  lines.push(`${'  create rules'.padEnd(w)} ${formatMs(bd.createRules).padStart(10)}  ${pct(bd.createRules)}`)
+  lines.push(`${'  build dispatch'.padEnd(w)} ${formatMs(bd.buildDispatch).padStart(10)}  ${pct(bd.buildDispatch)}`)
+}
+
+function formatMs(ms: number): string {
+  if (ms < 0.01) return '<0.01 ms'
+  return `${ms.toFixed(2)} ms`
+}
+
+export interface TimingReport {
+  marks: Array<{ name: string; durationMs: number }>
+  startup: number
+  check: number
+  total: number
+  filesChecked: number
+  totalLines: number
+  totalChars: number
+  totalNodes: number
+  avgPerFile: number
+  avgPerLine: number
+  avgPerChar: number
+  breakdown: {
+    parse: number
+    createRules: number
+    buildDispatch: number
+    walkOverhead: number
+    ruleExec: number
+  }
+  ruleAverages: Array<{ ruleId: string; avgMs: number; totalMs: number; files: number }>
+}
+
 export function buildReport(metrics: TimingMetrics): TimingReport {
   const startup =
     markNamed(metrics, 'startup') || sumMarksNamed(metrics, ['config.load', 'parser.load', 'registry.load'])
@@ -72,7 +108,7 @@ export function buildReport(metrics: TimingMetrics): TimingReport {
   const walkOverhead = Math.max(walk - totalRuleExec, 0)
 
   return {
-    marks: metrics.marks,
+    marks: aggregateMarks(metrics),
     startup,
     check,
     total,
@@ -86,23 +122,6 @@ export function buildReport(metrics: TimingMetrics): TimingReport {
     breakdown: { parse, createRules, buildDispatch, walkOverhead, ruleExec: totalRuleExec },
     ruleAverages,
   }
-}
-
-function formatBreakdown(lines: string[], report: TimingReport): void {
-  const bd = report.breakdown
-  const total = bd.parse + bd.createRules + bd.buildDispatch + bd.walkOverhead + bd.ruleExec
-  if (total <= 0) return
-
-  const pct = (v: number) => `${((v / total) * 100).toFixed(0)}%`
-  const w = 18
-
-  lines.push('')
-  lines.push('check breakdown:')
-  lines.push(`${'  parse'.padEnd(w)} ${formatMs(bd.parse).padStart(10)}  ${pct(bd.parse)}`)
-  lines.push(`${'  walk overhead'.padEnd(w)} ${formatMs(bd.walkOverhead).padStart(10)}  ${pct(bd.walkOverhead)}`)
-  lines.push(`${'  rule execution'.padEnd(w)} ${formatMs(bd.ruleExec).padStart(10)}  ${pct(bd.ruleExec)}`)
-  lines.push(`${'  create rules'.padEnd(w)} ${formatMs(bd.createRules).padStart(10)}  ${pct(bd.createRules)}`)
-  lines.push(`${'  build dispatch'.padEnd(w)} ${formatMs(bd.buildDispatch).padStart(10)}  ${pct(bd.buildDispatch)}`)
 }
 
 export function formatReport(report: TimingReport): string {
@@ -147,9 +166,4 @@ export function formatReport(report: TimingReport): string {
   }
 
   return lines.join('\n')
-}
-
-function formatMs(ms: number): string {
-  if (ms < 0.01) return '<0.01 ms'
-  return `${ms.toFixed(2)} ms`
 }
