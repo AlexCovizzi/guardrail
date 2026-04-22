@@ -76,8 +76,6 @@ export function mergePromptIntoClaudeMd(content: string, line: string): { conten
   return { content: trimmed ? `${trimmed}\n\n${line}\n` : `${line}\n`, added: true }
 }
 
-// --- CLI ---
-
 export function claudeCommand() {
   return createCommand('claude')
     .description('Claude Code integration')
@@ -89,8 +87,6 @@ export function claudeCommand() {
     )
     .addCommand(createCommand('check').description('Run as a Claude Code hook (reads stdin JSON)').action(checkClaude))
 }
-
-// --- init ---
 
 async function initClaude(options: { scope: string }): Promise<void> {
   const scope = options.scope
@@ -191,8 +187,6 @@ function executePlan(actions: InitAction[], paths: InitPaths): void {
   }
 }
 
-// --- check ---
-
 async function checkClaude(): Promise<void> {
   let gr: Guardrail
   try {
@@ -242,8 +236,6 @@ function formatClaudeViolations(results: Result[]): string {
   }
   return lines.join('\n')
 }
-
-// --- helpers ---
 
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {
