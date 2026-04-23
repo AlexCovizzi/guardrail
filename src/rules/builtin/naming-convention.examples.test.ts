@@ -17,6 +17,10 @@ describe('naming-convention examples', () => {
         code: `interface MyInterface { name: string }`,
       },
       {
+        description: 'camelCase constant',
+        code: `const maxSize = 100`,
+      },
+      {
         description: 'UPPER_SNAKE_CASE constant',
         code: `const MAX_SIZE = 100`,
       },
@@ -36,6 +40,26 @@ describe('naming-convention examples', () => {
         description: 'dunder method is allowed',
         code: `class Foo { __init__() {} }`,
       },
+      {
+        description: 'skips anonymous arrow functions',
+        code: `let x = () => 1`,
+      },
+      {
+        description: 'skips anonymous function expressions',
+        code: `let x = function() { return 1 }`,
+      },
+      {
+        description: 'const inside class method',
+        code: `class Foo {\n  bar() {\n    const result = 1\n  }\n}`,
+      },
+      {
+        description: 'const inside arrow function body',
+        code: `const MY_HANDLER = () => {\n  const total = 0\n}`,
+      },
+      {
+        description: 'const inside nested function',
+        code: `function outer() {\n  function inner() {\n    const count = 1\n  }\n}`,
+      },
     ]
 
     const invalid = [
@@ -48,16 +72,28 @@ describe('naming-convention examples', () => {
         code: `class myClass {}`,
       },
       {
-        description: 'camelCase constant name',
-        code: `const maxSize = 100`,
+        description: 'PascalCase const name',
+        code: `const MyBadConst = 100`,
       },
       {
-        description: 'camelCase constant name',
-        code: `const maxSize = 100`,
+        description: 'UPPER_SNAKE_CASE variable name (let)',
+        code: `let MAX_SIZE = 100`,
+      },
+      {
+        description: 'PascalCase variable name (let)',
+        code: `let MyBadVariable = 1`,
       },
       {
         description: 'snake_case function name',
         code: `function my_function(): void {}`,
+      },
+      {
+        description: 'UPPER_SNAKE_CASE function name',
+        code: `function MY_FUNCTION(): void {}`,
+      },
+      {
+        description: 'PascalCase const inside function',
+        code: `function foo() {\n  const Result = compute()\n}`,
       },
     ]
 
@@ -148,18 +184,50 @@ describe('naming-convention examples', () => {
     const valid = [
       {
         description: 'camelCase function',
-        code: `fun doSomething() {}`,
+        code: 'fun doSomething() {}',
       },
       {
         description: 'PascalCase class',
-        code: `class MyComponent`,
+        code: 'class MyComponent',
+      },
+      {
+        description: 'camelCase val at top level',
+        code: 'val myProperty = "hello"',
+      },
+      {
+        description: 'UPPER_SNAKE_CASE val at top level',
+        code: 'val MY_PROPERTY = "hello"',
+      },
+      {
+        description: 'camelCase val inside class',
+        code: 'class Foo {\n  val myProp = "hello"\n}',
+      },
+      {
+        description: 'UPPER_SNAKE_CASE val inside class',
+        code: 'class Foo {\n  val MY_PROP = "hello"\n}',
+      },
+      {
+        description: 'camelCase val inside function',
+        code: 'fun foo() {\n  val myProp = 1\n}',
+      },
+      {
+        description: 'UPPER_SNAKE_CASE val inside function',
+        code: 'fun foo() {\n  val MY_PROP = 1\n}',
       },
     ]
 
     const invalid = [
       {
         description: 'snake_case function',
-        code: `fun do_something() {}`,
+        code: 'fun do_something() {}',
+      },
+      {
+        description: 'PascalCase val inside function',
+        code: 'fun foo() {\n  val MyProp = 1\n}',
+      },
+      {
+        description: 'PascalCase val inside class',
+        code: 'class Foo {\n  val MyProp = "hello"\n}',
       },
     ]
 
@@ -174,17 +242,10 @@ describe('naming-convention examples', () => {
     })
   })
 
-  describe('edge cases', () => {
-    it('skips anonymous arrow functions', async () => {
-      const rule = getBuiltinRule('naming-convention', { style: 'camelCase' })
-      const code = `let x = () => 1`
-      expect(await matchesAnyNode(rule, code, 'typescript')).toBe(false)
-    })
-
-    it('skips anonymous function expressions', async () => {
-      const rule = getBuiltinRule('naming-convention', { style: 'camelCase' })
-      const code = `let x = function() { return 1 }`
-      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+  describe('misc', () => {
+    it('uses correct default severity', () => {
+      const rule = getBuiltinRule('naming-convention')
+      expect(rule.severity).toBe('warning')
     })
 
     it('reports violation with expected style in message', async () => {
@@ -193,27 +254,6 @@ describe('naming-convention examples', () => {
       const violations = await collectViolations(rule, code, 'typescript')
       expect(violations.length).toBeGreaterThan(0)
       expect(violations[0]).toContain('camelCase')
-    })
-
-    it('constant selector fires for const declarations (not just let)', async () => {
-      const rule = getBuiltinRule('naming-convention', { style: 'camelCase' })
-      const code = `const maxSize = 100`
-      const violations = await collectViolations(rule, code, 'typescript')
-      expect(violations.length).toBeGreaterThan(0)
-      expect(violations[0]).toContain('UPPER_SNAKE_CASE')
-    })
-
-    it('variable selector fires for let declarations', async () => {
-      const rule = getBuiltinRule('naming-convention', { style: 'camelCase' })
-      const code = `let MyBadVariable = 1`
-      const violations = await collectViolations(rule, code, 'typescript')
-      expect(violations.length).toBeGreaterThan(0)
-      expect(violations[0]).toContain('camelCase')
-    })
-
-    it('uses correct default severity', () => {
-      const rule = getBuiltinRule('naming-convention')
-      expect(rule.severity).toBe('warning')
     })
   })
 })

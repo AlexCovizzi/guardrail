@@ -24,7 +24,7 @@ export const KOTLIN: LanguageDefinition = {
     enum: [{ type: 'enum_declaration' }, { type: 'class_declaration', hasChild: 'enum' }],
     namespace: [],
     constant: [{ type: 'property_declaration', hasChild: 'val' }],
-    variable: [{ type: 'property_declaration', lacksChild: 'val' }],
+    variable: [{ type: 'property_declaration', hasChild: 'var' }],
     branch: [
       { type: 'if_expression' },
       { type: 'for_statement' },

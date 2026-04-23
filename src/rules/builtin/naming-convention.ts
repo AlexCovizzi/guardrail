@@ -72,7 +72,7 @@ function extractNamesFromDeclaration(node: Node): Array<{ name: string; node: No
 
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = node.namedChild(i)
-    if (child?.type === 'variable_declarator') {
+    if (child?.type === 'variable_declarator' || child?.type === 'variable_declaration') {
       const name = extractName(child)
       if (name) results.push({ name, node: child })
     }
@@ -91,21 +91,58 @@ function extractNamesFromDeclaration(node: Node): Array<{ name: string; node: No
   return results
 }
 
-function makeNameChecker(styleMap: StyleMap, report: ReportFn) {
-  return (name: string, kind: string, node: Node): void => {
-    const expected = styleMap[kind]
-    if (!expected) return
-    if (name.startsWith('__') && name.endsWith('__')) return
-    if (matchesStyle(name, expected)) return
-    const stripped = stripAffixes(name)
-    if (stripped && matchesStyle(stripped, expected)) return
+interface NameCheckOptions {
+  name: string
+  kind: string
+  expected: CaseStyle
+  node: Node
+  report: ReportFn
+}
 
-    report({
-      message: `${kind} '${name}' should use ${expected} naming`,
-      suggestion: `Rename '${name}' to follow ${describeStyle(expected)}.`,
-      node,
-    })
+function checkName(opts: NameCheckOptions): void {
+  const { name, kind, expected, node, report } = opts
+  if (name.startsWith('__') && name.endsWith('__')) return
+  if (matchesStyle(name, expected)) return
+  const stripped = stripAffixes(name)
+  if (stripped && matchesStyle(stripped, expected)) return
+
+  report({
+    message: `${kind} '${name}' should use ${expected} naming`,
+    suggestion: `Rename '${name}' to follow ${describeStyle(expected)}.`,
+    node,
+  })
+}
+
+interface ConstantCheckOptions {
+  name: string
+  constantStyle: CaseStyle
+  variableStyle: CaseStyle
+  node: Node
+  report: ReportFn
+}
+
+function isValidConstantName(name: string, constantStyle: CaseStyle, variableStyle: CaseStyle): boolean {
+  const stripped = stripAffixes(name)
+  const raw = [name, stripped]
+  const styles = [constantStyle, variableStyle]
+  for (const n of raw) {
+    for (const s of styles) {
+      if (n && matchesStyle(n, s)) return true
+    }
   }
+  return false
+}
+
+function checkConstantName(opts: ConstantCheckOptions): void {
+  const { name, constantStyle, variableStyle, node, report } = opts
+  if (name.startsWith('__') && name.endsWith('__')) return
+  if (isValidConstantName(name, constantStyle, variableStyle)) return
+
+  report({
+    message: `constant '${name}' should use ${constantStyle} or ${variableStyle} naming`,
+    suggestion: `Rename '${name}' to follow ${describeStyle(constantStyle)} or ${describeStyle(variableStyle)}.`,
+    node,
+  })
 }
 
 export default function registerNamingConvention(register: RegisterFn) {
@@ -122,17 +159,28 @@ export default function registerNamingConvention(register: RegisterFn) {
       const singleNameHandler =
         (kind: string) =>
         (node: Node, _ctx: RuleContext, report: ReportFn): void => {
-          const check = makeNameChecker(styleMap, report)
           const name = extractName(node)
-          if (name) check(name, kind, node)
+          if (name) checkName({ name, kind, expected: styleMap[kind], node, report })
         }
 
       const declarationNamesHandler =
         (kind: string) =>
         (node: Node, _ctx: RuleContext, report: ReportFn): void => {
-          const check = makeNameChecker(styleMap, report)
           for (const { name, node: nameNode } of extractNamesFromDeclaration(node)) {
-            check(name, kind, nameNode)
+            checkName({ name, kind, expected: styleMap[kind], node: nameNode, report })
+          }
+        }
+
+      const constantNamesHandler =
+        (node: Node, _ctx: RuleContext, report: ReportFn): void => {
+          for (const { name, node: nameNode } of extractNamesFromDeclaration(node)) {
+            checkConstantName({
+              name,
+              constantStyle: styleMap.constant,
+              variableStyle: styleMap.variable,
+              node: nameNode,
+              report,
+            })
           }
         }
 
@@ -142,7 +190,7 @@ export default function registerNamingConvention(register: RegisterFn) {
         interface: singleNameHandler('interface'),
         type: singleNameHandler('type'),
         enum: singleNameHandler('enum'),
-        constant: declarationNamesHandler('constant'),
+        constant: constantNamesHandler,
         variable: declarationNamesHandler('variable'),
         namespace: singleNameHandler('namespace'),
       }
