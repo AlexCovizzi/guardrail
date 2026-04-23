@@ -171,18 +171,17 @@ export default function registerNamingConvention(register: RegisterFn) {
           }
         }
 
-      const constantNamesHandler =
-        (node: Node, _ctx: RuleContext, report: ReportFn): void => {
-          for (const { name, node: nameNode } of extractNamesFromDeclaration(node)) {
-            checkConstantName({
-              name,
-              constantStyle: styleMap.constant,
-              variableStyle: styleMap.variable,
-              node: nameNode,
-              report,
-            })
-          }
+      const constantNamesHandler = (node: Node, _ctx: RuleContext, report: ReportFn): void => {
+        for (const { name, node: nameNode } of extractNamesFromDeclaration(node)) {
+          checkConstantName({
+            name,
+            constantStyle: styleMap.constant,
+            variableStyle: styleMap.variable,
+            node: nameNode,
+            report,
+          })
         }
+      }
 
       return {
         function: singleNameHandler('function'),
