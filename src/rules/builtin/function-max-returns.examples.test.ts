@@ -223,6 +223,92 @@ describe('function-max-returns examples', () => {
     })
   })
 
+  describe('scope isolation — each function counted independently', () => {
+    it('nested callback exceeding limit does not inflate outer count', async () => {
+      const rule = getBuiltinRule('function-max-returns', { max: 3 })
+      const code = [
+        'function outer() {',
+        '  if (!items) return []',
+        '  const result = items.map(x => {',
+        '    if (x > 0) return x',
+        '    if (x < 0) return -x',
+        '    return 0',
+        '  })',
+        '  return result',
+        '}',
+      ].join('\n')
+      // outer: 2 returns (within limit), inner callback: 3 returns (within limit)
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+
+    it('inner callback exceeding limit reports only on the callback', async () => {
+      const rule = getBuiltinRule('function-max-returns', { max: 3 })
+      const code = [
+        'function outer() {',
+        '  return items.map(x => {',
+        '    if (x === 1) return "one"',
+        '    if (x === 2) return "two"',
+        '    if (x === 3) return "three"',
+        '    if (x === 4) return "four"',
+        '    return "other"',
+        '  })',
+        '}',
+      ].join('\n')
+      // outer: 1 return (within limit), inner callback: 5 returns (exceeds max 3)
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('5 return statements')
+    })
+
+    it('both outer and inner exceeding limit report independently', async () => {
+      const rule = getBuiltinRule('function-max-returns', { max: 2 })
+      const code = [
+        'function outer() {',
+        '  if (a) return 1',
+        '  if (b) return 2',
+        '  return 3',
+        '  const f = () => {',
+        '    if (c) return 4',
+        '    if (d) return 5',
+        '    return 6',
+        '  }',
+        '}',
+      ].join('\n')
+      // outer: 3 returns (exceeds max 2), inner: 3 returns (exceeds max 2)
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations).toHaveLength(2)
+    })
+
+    it('yield expressions count toward returns in generators', async () => {
+      const rule = getBuiltinRule('function-max-returns', { max: 2 })
+      const code = ['function* gen() {', '  yield 1', '  yield 2', '  yield 3', '}'].join('\n')
+      // 3 yield expressions exceeds max 2
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('3 return statements')
+    })
+
+    it('class method returns counted independently from class scope', async () => {
+      const rule = getBuiltinRule('function-max-returns', { max: 2 })
+      const code = [
+        'class Foo {',
+        '  String ok(int x) {',
+        '    return x > 0 ? "yes" : "no";',
+        '  }',
+        '  String bad(int x) {',
+        '    if (x == 1) return "one";',
+        '    if (x == 2) return "two";',
+        '    return "other";',
+        '  }',
+        '}',
+      ].join('\n')
+      // ok: 1 return (ternary is 1), bad: 3 returns (exceeds max 2)
+      const violations = await collectViolations(rule, code, 'java')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('3 return statements')
+    })
+  })
+
   describe('edge cases', () => {
     it('uses correct default severity', () => {
       const rule = getBuiltinRule('function-max-returns')

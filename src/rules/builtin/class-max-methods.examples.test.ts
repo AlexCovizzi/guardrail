@@ -157,6 +157,24 @@ describe('class-max-methods examples', () => {
     })
   })
 
+  describe('scope behavior — class scope passes through to nested functions', () => {
+    it('methods containing inner functions also counted (pass-through)', async () => {
+      const rule = getBuiltinRule('class-max-methods', { max: 2 })
+      const code = ['class Foo {', '  method1() {', '    function inner() {}', '  }', '  method2() {}', '}'].join('\n')
+      // class scope defines 'function' handler (no inner scope shadows it),
+      // so both method and inner function fire the handler: 3 functions total exceeds max 2
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('3 methods')
+    })
+
+    it('empty class has zero methods', async () => {
+      const rule = getBuiltinRule('class-max-methods', { max: 5 })
+      const code = 'class Foo {}'
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+  })
+
   describe('edge cases', () => {
     it('uses correct default severity', () => {
       const rule = getBuiltinRule('class-max-methods')

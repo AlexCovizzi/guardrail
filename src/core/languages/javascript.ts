@@ -10,6 +10,8 @@ export const JAVASCRIPT: LanguageDefinition = {
       { type: 'function_expression' },
       { type: 'arrow_function' },
       { type: 'method_definition' },
+      { type: 'generator_function_declaration' },
+      { type: 'generator_function' },
     ],
     class: [{ type: 'class_declaration' }, { type: 'class' }],
     import: [{ type: 'import_statement' }],
@@ -32,5 +34,7 @@ export const JAVASCRIPT: LanguageDefinition = {
       { type: 'ternary_expression' },
     ],
     parameters: [{ type: 'formal_parameters' }],
+    return: [{ type: 'return_statement' }],
+    yield: [{ type: 'yield_expression' }],
   },
 }

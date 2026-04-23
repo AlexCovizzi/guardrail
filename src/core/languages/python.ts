@@ -24,5 +24,7 @@ export const PYTHON: LanguageDefinition = {
       { type: 'conditional_expression' },
     ],
     parameters: [{ type: 'parameters' }],
+    return: [{ type: 'return_statement' }],
+    yield: [{ type: 'yield' }],
   },
 }

@@ -30,5 +30,7 @@ export const JAVA: LanguageDefinition = {
       { type: 'ternary_expression' },
     ],
     parameters: [{ type: 'formal_parameters' }],
+    return: [{ type: 'return_statement' }],
+    yield: [],
   },
 }

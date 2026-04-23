@@ -251,6 +251,29 @@ describe('function-max-nesting examples', () => {
     })
   })
 
+  describe('flat handlers — fire across all depths', () => {
+    it('function and branch handlers fire at every nesting level', async () => {
+      const rule = getBuiltinRule('function-max-nesting', { max: 1 })
+      const code = [
+        'function outer() {',
+        '  if (x) {',
+        '    function middle() {',
+        '      if (y) {',
+        '        function inner() {',
+        '          if (z) {}',
+        '        }',
+        '      }',
+        '    }',
+        '  }',
+        '}',
+      ].join('\n')
+      // outer has nesting depth 2 (branch + nested function), middle has 2
+      // inner has depth 1 (within limit). Only outer and middle violated max 1.
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations.length).toBe(2)
+    })
+  })
+
   describe('edge cases', () => {
     it('uses correct default severity', () => {
       const rule = getBuiltinRule('function-max-nesting')

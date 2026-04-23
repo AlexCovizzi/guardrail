@@ -153,6 +153,25 @@ describe('class-max-fields examples', () => {
     })
   })
 
+  describe('scope isolation — class scope only sees field selectors', () => {
+    it('method local variables are not counted as class fields', async () => {
+      const rule = getBuiltinRule('class-max-fields', { max: 2 })
+      const code = [
+        'class Foo {',
+        '  field1 = 1',
+        '  field2 = 2',
+        '  method() {',
+        '    const localA = 10',
+        '    const localB = 20',
+        '    const localC = 30',
+        '  }',
+        '}',
+      ].join('\n')
+      // 2 fields (field1, field2), locals inside method belong to function scope
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+  })
+
   describe('edge cases', () => {
     it('uses correct default severity', () => {
       const rule = getBuiltinRule('class-max-fields')

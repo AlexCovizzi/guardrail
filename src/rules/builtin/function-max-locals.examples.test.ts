@@ -241,6 +241,49 @@ describe('function-max-locals examples', () => {
     })
   })
 
+  describe('scope isolation — each function counted independently', () => {
+    it('nested function exceeding limit reports only on inner', async () => {
+      const rule = getBuiltinRule('function-max-locals', { max: 3 })
+      const code = [
+        'function outer() {',
+        '  const a = 1',
+        '  const b = 2',
+        '  const inner = () => {',
+        '    const x = 1',
+        '    const y = 2',
+        '    const z = 3',
+        '    const w = 4',
+        '    return x + y + z + w',
+        '  }',
+        '  return a + b + inner()',
+        '}',
+      ].join('\n')
+      // outer: 3 locals (a, b, inner) — at max. inner: 4 locals (x, y, z, w) — exceeds max
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('4 local variables')
+    })
+
+    it('both outer and inner exceeding limit report independently', async () => {
+      const rule = getBuiltinRule('function-max-locals', { max: 2 })
+      const code = [
+        'function outer() {',
+        '  const a = 1',
+        '  const b = 2',
+        '  const c = 3',
+        '  function inner() {',
+        '    const x = 1',
+        '    const y = 2',
+        '    const z = 3',
+        '  }',
+        '}',
+      ].join('\n')
+      // outer: 4 locals (a, b, c, inner), inner: 3 locals (x, y, z)
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations).toHaveLength(2)
+    })
+  })
+
   describe('edge cases', () => {
     it('uses correct default severity', () => {
       const rule = getBuiltinRule('function-max-locals')

@@ -33,9 +33,11 @@ export interface ReportViolation {
 
 export type ReportFn = (violation: ReportViolation) => void
 
-export type Selector = SemanticKind | `${SemanticKind}Exit` | `_${string}` | `_${string}Exit`
+export type Selector = SemanticKind | `${SemanticKind}Exit` | `_${string}` | `_${string}Exit` | 'exit'
 
-export type Handler = (node: Node, ctx: RuleContext, report: ReportFn) => void
+export type VisitorMap = Partial<Record<Selector, Handler>>
+
+export type Handler = (node: Node, ctx: RuleContext, report: ReportFn) => void | VisitorMap
 
 export type RegisterFn = (id: string, definition: RuleDefinition) => void
 

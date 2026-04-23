@@ -34,5 +34,7 @@ export const KOTLIN: LanguageDefinition = {
       { type: 'catch_block' },
     ],
     parameters: [{ type: 'function_value_parameters' }],
+    return: [{ type: 'return_expression' }],
+    yield: [],
   },
 }

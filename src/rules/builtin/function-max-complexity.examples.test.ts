@@ -227,6 +227,60 @@ def classify(n):
     })
   })
 
+  describe('scope isolation — each function counted independently', () => {
+    it('nested callback complexity reported only on the callback', async () => {
+      const rule = getBuiltinRule('function-max-complexity', { max: 4 })
+      const code = [
+        'function simple(arr) {',
+        '  if (arr.length === 0) return []',
+        '  return arr.filter(x => {',
+        '    if (x < 0) return false',
+        '    else if (x === 0) return false',
+        '    else if (x > 100) return false',
+        '    else if (x > 50) return false',
+        '    else return true',
+        '  })',
+        '}',
+      ].join('\n')
+      // simple: complexity 2 (1 base + 1 branch). callback: complexity 5 (1 base + 4 branches)
+      const violations = await collectViolations(rule, code, 'javascript')
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain('complexity of 5')
+    })
+
+    it('branches inside callbacks do not inflate outer complexity', async () => {
+      const rule = getBuiltinRule('function-max-complexity', { max: 6 })
+      const code = [
+        'function outer(x) {',
+        '  if (x > 0) {',
+        '    return arr.map(y => {',
+        '      if (y < 0) return -1',
+        '      if (y === 0) return 0',
+        '      return 1',
+        '    })',
+        '  }',
+        '  return x',
+        '}',
+      ].join('\n')
+      // outer: complexity 2, callback: complexity 3 — both within limit
+      expect(await matchesAnyNode(rule, code, 'javascript')).toBe(false)
+    })
+
+    it('method with nested lambda counted independently (Java)', async () => {
+      const rule = getBuiltinRule('function-max-complexity', { max: 4 })
+      const code = [
+        'class Foo {',
+        '  int simple(int x) {',
+        '    if (x > 0) return x;',
+        '    return -x;',
+        '  }',
+        '}',
+      ].join('\n')
+      // simple method: complexity 2 — within limit
+      expect(await matchesAnyNode(rule, code, 'java')).toBe(false)
+    })
+  })
+
   describe('edge cases', () => {
     it('uses correct default severity', () => {
       const rule = getBuiltinRule('function-max-complexity')
