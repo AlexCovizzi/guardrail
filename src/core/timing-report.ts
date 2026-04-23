@@ -1,16 +1,18 @@
 import type { TimingMetrics } from './timer.js'
 
 function markNamed(metrics: TimingMetrics, name: string): number {
-  return metrics.marks.find((m) => m.name === name)?.durationMs ?? 0
+  return metrics.marks.find((mark) => mark.name === name)?.durationMs ?? 0
 }
 
 function sumMarksNamed(metrics: TimingMetrics, names: string[]): number {
-  return metrics.marks.filter((m) => names.includes(m.name)).reduce((sum, m) => sum + m.durationMs, 0)
+  return metrics.marks.filter((mark) => names.includes(mark.name)).reduce((sum, mark) => sum + mark.durationMs, 0)
 }
 
 function sumMarksByName(metrics: TimingMetrics, name: string): number {
-  return metrics.marks.filter((m) => m.name === name).reduce((sum, m) => sum + m.durationMs, 0)
+  return metrics.marks.filter((mark) => mark.name === name).reduce((sum, mark) => sum + mark.durationMs, 0)
 }
+
+const STARTUP_MARK_NAMES = ['config.load', 'parser.load', 'registry.load']
 
 function aggregateRules(ruleTotals: TimingMetrics['ruleTotals']): {
   ruleAverages: TimingReport['ruleAverages']
@@ -24,51 +26,68 @@ function aggregateRules(ruleTotals: TimingMetrics['ruleTotals']): {
     ruleAverages.push({ ruleId, avgMs: totalMs / files, totalMs, files })
   }
 
-  ruleAverages.sort((a, b) => b.totalMs - a.totalMs)
+  ruleAverages.sort((left, right) => right.totalMs - left.totalMs)
   return { ruleAverages, totalRuleExec }
 }
 
-function aggregateMarks(metrics: TimingMetrics): Array<{ name: string; durationMs: number }> {
-  const seen = new Map<string, number>()
-  const order: string[] = []
-  for (const m of metrics.marks) {
-    if (seen.has(m.name)) {
-      seen.set(m.name, seen.get(m.name)! + m.durationMs)
-    } else {
-      seen.set(m.name, m.durationMs)
-      order.push(m.name)
+/** Gather sub-marks that logically belong to the startup phase, in first-seen order. */
+function startupPhases(metrics: TimingMetrics): Array<{ name: string; durationMs: number }> {
+  const result: Array<{ name: string; durationMs: number }> = []
+  for (const mark of metrics.marks) {
+    if (STARTUP_MARK_NAMES.includes(mark.name)) {
+      result.push({ name: mark.name, durationMs: mark.durationMs })
     }
   }
-  return order.map((name) => ({ name, durationMs: seen.get(name)! }))
+  return result
 }
 
-function formatBreakdown(lines: string[], report: TimingReport): void {
-  const bd = report.breakdown
-  const total = bd.parse + bd.createRules + bd.buildDispatch + bd.walkOverhead + bd.ruleExec
-  if (total <= 0) return
-
-  const pct = (v: number) => `${((v / total) * 100).toFixed(0)}%`
-  const w = 18
-
-  lines.push('')
-  lines.push('check breakdown:')
-  lines.push(`${'  parse'.padEnd(w)} ${formatMs(bd.parse).padStart(10)}  ${pct(bd.parse)}`)
-  lines.push(`${'  walk overhead'.padEnd(w)} ${formatMs(bd.walkOverhead).padStart(10)}  ${pct(bd.walkOverhead)}`)
-  lines.push(`${'  rule execution'.padEnd(w)} ${formatMs(bd.ruleExec).padStart(10)}  ${pct(bd.ruleExec)}`)
-  lines.push(`${'  create rules'.padEnd(w)} ${formatMs(bd.createRules).padStart(10)}  ${pct(bd.createRules)}`)
-  lines.push(`${'  build dispatch'.padEnd(w)} ${formatMs(bd.buildDispatch).padStart(10)}  ${pct(bd.buildDispatch)}`)
+interface CheckBreakdown {
+  phases: Array<{ name: string; durationMs: number; pct: number }>
 }
 
-function formatMs(ms: number): string {
-  if (ms < 0.01) return '<0.01 ms'
+function buildCheckBreakdown(metrics: TimingMetrics): CheckBreakdown {
+  const parse = sumMarksByName(metrics, 'parse')
+  const createRules = sumMarksByName(metrics, 'createRules')
+  const buildDispatch = sumMarksByName(metrics, 'buildDispatch')
+  const walk = sumMarksByName(metrics, 'walk')
+  const { ruleAverages, totalRuleExec } = aggregateRules(metrics.ruleTotals)
+
+  const walkOverhead = Math.max(walk - totalRuleExec, 0)
+
+  const entries = [
+    { name: 'parse', durationMs: parse },
+    { name: 'rule execution', durationMs: totalRuleExec },
+    { name: 'walk overhead', durationMs: walkOverhead },
+    { name: 'create rules', durationMs: createRules },
+    { name: 'build dispatch', durationMs: buildDispatch },
+  ]
+
+  const phasesTotal = entries.reduce((sum, item) => sum + item.durationMs, 0)
+
+  const phases = entries.map((item) => ({
+    ...item,
+    pct: phasesTotal > 0 ? (item.durationMs / phasesTotal) * 100 : 0,
+  }))
+
+  return { phases }
+}
+
+const MS_THRESHOLD = 0.01
+const SEPARATOR_WIDTH = 50
+const LABEL_WIDTH = 22
+const PCT_WIDTH = 4
+
+function formatMsmilliseconds(ms: number): string {
+  if (ms < MS_THRESHOLD) return '<0.01 ms'
   return `${ms.toFixed(2)} ms`
 }
 
 export interface TimingReport {
-  marks: Array<{ name: string; durationMs: number }>
   startup: number
   check: number
   total: number
+  startupPhases: Array<{ name: string; durationMs: number }>
+  checkPhases: Array<{ name: string; durationMs: number; pct: number }>
   filesChecked: number
   totalLines: number
   totalChars: number
@@ -76,50 +95,35 @@ export interface TimingReport {
   avgPerFile: number
   avgPerLine: number
   avgPerChar: number
-  breakdown: {
-    parse: number
-    createRules: number
-    buildDispatch: number
-    walkOverhead: number
-    ruleExec: number
-  }
   ruleAverages: Array<{ ruleId: string; avgMs: number; totalMs: number; files: number }>
 }
 
 export function buildReport(metrics: TimingMetrics): TimingReport {
-  const startup =
-    markNamed(metrics, 'startup') || sumMarksNamed(metrics, ['config.load', 'parser.load', 'registry.load'])
+  const startup = markNamed(metrics, 'startup') || sumMarksNamed(metrics, STARTUP_MARK_NAMES)
   const check = sumMarksNamed(metrics, ['file.expand', 'check.files'])
-  const total = metrics.marks.reduce((s, m) => s + m.durationMs, 0)
 
-  const checkFilesMs = markNamed(metrics, 'check.files')
-  const totalLines = metrics.totalLines
-  const totalChars = metrics.totalChars
-  const totalNodes = metrics.totalNodes
+  // Total is the sum of the two top-level, non-overlapping phases — not the
+  // sum of all marks, which would double-count nested timings.
+  const total = startup + check
+
+  const checkMs = sumMarksByName(metrics, 'check.files')
   const fileCount = metrics.filesChecked || 1
-
-  // Direct aggregate timings from timer.measure — no concurrency inflation
-  const parse = sumMarksByName(metrics, 'parse')
-  const createRules = sumMarksByName(metrics, 'createRules')
-  const buildDispatch = sumMarksByName(metrics, 'buildDispatch')
-  const walk = sumMarksByName(metrics, 'walk')
-
-  const { ruleAverages, totalRuleExec } = aggregateRules(metrics.ruleTotals)
-  const walkOverhead = Math.max(walk - totalRuleExec, 0)
+  const { phases: checkPhases } = buildCheckBreakdown(metrics)
+  const { ruleAverages } = aggregateRules(metrics.ruleTotals)
 
   return {
-    marks: aggregateMarks(metrics),
     startup,
     check,
     total,
+    startupPhases: startupPhases(metrics),
+    checkPhases,
     filesChecked: metrics.filesChecked,
-    totalLines,
-    totalChars,
-    totalNodes,
-    avgPerFile: checkFilesMs / fileCount,
-    avgPerLine: checkFilesMs / (totalLines || 1),
-    avgPerChar: checkFilesMs / (totalChars || 1),
-    breakdown: { parse, createRules, buildDispatch, walkOverhead, ruleExec: totalRuleExec },
+    totalLines: metrics.totalLines,
+    totalChars: metrics.totalChars,
+    totalNodes: metrics.totalNodes,
+    avgPerFile: checkMs / fileCount,
+    avgPerLine: checkMs / (metrics.totalLines || 1),
+    avgPerChar: checkMs / (metrics.totalChars || 1),
     ruleAverages,
   }
 }
@@ -128,39 +132,49 @@ export function formatReport(report: TimingReport): string {
   const lines: string[] = []
 
   lines.push('guardrail timing report')
-  lines.push('─'.repeat(50))
+  lines.push('─'.repeat(SEPARATOR_WIDTH))
 
-  const maxNameLen = Math.max(...report.marks.map((m) => m.name.length), 20)
-  for (const m of report.marks) {
-    lines.push(`${m.name.padEnd(maxNameLen + 2)} ${m.durationMs.toFixed(1)} ms`)
+  // Startup phase
+  lines.push(`${'startup'.padEnd(LABEL_WIDTH)} ${formatMsmilliseconds(report.startup)}`)
+  for (const phase of report.startupPhases) {
+    lines.push(`  ${phase.name.padEnd(LABEL_WIDTH - 2)} ${formatMsmilliseconds(phase.durationMs)}`)
   }
 
-  lines.push('─'.repeat(50))
-  lines.push(`${'startup'.padEnd(maxNameLen + 2)} ${report.startup.toFixed(1)} ms`)
-  lines.push(`${'check'.padEnd(maxNameLen + 2)} ${report.check.toFixed(1)} ms`)
-  lines.push(`${'total'.padEnd(maxNameLen + 2)} ${report.total.toFixed(1)} ms`)
+  // Check phase
+  lines.push(`${'check'.padEnd(LABEL_WIDTH)} ${formatMsmilliseconds(report.check)}`)
+  for (const phase of report.checkPhases) {
+    const pct = `${phase.pct.toFixed(0)}%`
+    lines.push(
+      `  ${phase.name.padEnd(LABEL_WIDTH - 2)} ${formatMsmilliseconds(phase.durationMs)}  ${pct.padStart(PCT_WIDTH)}`
+    )
+  }
+
+  lines.push('─'.repeat(SEPARATOR_WIDTH))
+  lines.push(`${'total'.padEnd(LABEL_WIDTH)} ${formatMsmilliseconds(report.total)}`)
 
   if (report.filesChecked > 0) {
     lines.push('')
     lines.push(`checked ${report.filesChecked} files (${report.totalLines} lines, ${report.totalNodes} nodes)`)
-    lines.push(`  avg per file:    ${formatMs(report.avgPerFile)}`)
-    lines.push(`  avg per line:   ${formatMs(report.avgPerLine)}`)
-    lines.push(`  avg per char:   ${formatMs(report.avgPerChar)}`)
+    lines.push(`  avg per file:    ${formatMsmilliseconds(report.avgPerFile)}`)
+    lines.push(`  avg per line:   ${formatMsmilliseconds(report.avgPerLine)}`)
+    lines.push(`  avg per char:   ${formatMsmilliseconds(report.avgPerChar)}`)
   }
 
-  formatBreakdown(lines, report)
-
   if (report.ruleAverages.length > 0) {
+    const MIN_RULE_COL = 10
+    const NUM_COL_WIDTH = 10
+    const FILES_COL_WIDTH = 6
+
     lines.push('')
     lines.push('per-rule averages:')
-    const maxRuleLen = Math.max(...report.ruleAverages.map((r) => r.ruleId.length), 10)
+    const maxRuleLen = Math.max(...report.ruleAverages.map((rule) => rule.ruleId.length), MIN_RULE_COL)
     lines.push(
-      `${'rule'.padEnd(maxRuleLen + 2)} ${'avg/file'.padStart(10)} ${'total'.padStart(10)} ${'files'.padStart(6)}`
+      `${'rule'.padEnd(maxRuleLen + 2)} ${'avg/file'.padStart(NUM_COL_WIDTH)} ${'total'.padStart(NUM_COL_WIDTH)} ${'files'.padStart(FILES_COL_WIDTH)}`
     )
-    lines.push('─'.repeat(maxRuleLen + 2 + 10 + 10 + 6))
-    for (const r of report.ruleAverages) {
+    lines.push('─'.repeat(maxRuleLen + 2 + NUM_COL_WIDTH + NUM_COL_WIDTH + FILES_COL_WIDTH))
+    for (const rule of report.ruleAverages) {
       lines.push(
-        `${r.ruleId.padEnd(maxRuleLen + 2)} ${formatMs(r.avgMs).padStart(10)} ${formatMs(r.totalMs).padStart(10)} ${String(r.files).padStart(6)}`
+        `${rule.ruleId.padEnd(maxRuleLen + 2)} ${formatMsmilliseconds(rule.avgMs).padStart(NUM_COL_WIDTH)} ${formatMsmilliseconds(rule.totalMs).padStart(NUM_COL_WIDTH)} ${String(rule.files).padStart(FILES_COL_WIDTH)}`
       )
     }
   }
