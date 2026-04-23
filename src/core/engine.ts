@@ -41,17 +41,16 @@ export class Engine {
     const results: Result[] = []
 
     await this.timer.measure('check.files', async () => {
-      // Parse all files in parallel (only truly async phase)
-      const parsed = await this.timer.measure('parse', async () =>
-        Promise.all(expanded.map((file) => this.parseFile(file)))
-      )
-
-      // Process parsed results sequentially — clean timing, no concurrency inflation
-      for (const entry of parsed) {
+      // Parse and check one file at a time — keeps peak memory proportional to the
+      // single largest file rather than the total repo size.
+      for (const file of expanded) {
+        const entry = await this.timer.measure('parse', () => this.parseFile(file))
         if (!entry) continue
+
         const result = this.checkTree(entry)
         this.timer.addFileStats(entry.lines, entry.chars, result.nodesVisited)
         results.push(result.result)
+
         if (entry.tree && typeof entry.tree.delete === 'function') entry.tree.delete()
       }
     })
