@@ -142,7 +142,7 @@ describe('Engine.check', () => {
 
   it('walks child nodes', async () => {
     const child = makeNode('child_node')
-    const root = makeNode('root_node', { childCount: 1, child: () => child })
+    const root = makeNode('root_node', { children: [child] })
     mockParserParse.mockResolvedValue(makeTree(root))
     const visited: any[] = []
     mockCreateRules.mockReturnValue([

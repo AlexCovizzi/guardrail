@@ -1,13 +1,18 @@
 import { Language, type LanguageDefinition } from '../core/language.js'
 
+let nextNodeId = 1
+
 export function makeNode(type: string, overrides: Record<string, any> = {}): any {
+  const children: any[] = overrides.children ?? []
   return {
     type,
+    id: nextNodeId++,
     startPosition: { row: 0, column: 0 },
     endPosition: { row: 0, column: 10 },
-    childCount: 0,
-    child: () => null,
+    childCount: children.length,
+    child: (i: number) => children[i] ?? null,
     ...overrides,
+    children,
   }
 }
 

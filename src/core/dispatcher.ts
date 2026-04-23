@@ -1,21 +1,16 @@
 import type * as TreeSitter from 'web-tree-sitter'
 import type { Handler, Location, ReportFn, Rule, RuleContext, VisitorMap } from '../rules/rule.js'
 import type { LanguageDefinition } from './language.js'
-import type { NodePattern } from './languages/types.js'
 import { Node } from './node.js'
+import { ScopeChain, type ScopeFrame, type ScopeMapEntry } from './scope-chain.js'
 import { resolveSelector } from './selector.js'
 
-interface ScopeMapEntry {
-  handler: Handler
-  pattern?: NodePattern
-}
+type TraversalStep = [node: TreeSitter.Node, isExit: boolean]
 
-interface ScopeFrame {
-  rule: Rule
-  entryMap: Map<string, ScopeMapEntry[]>
-  exitMap: Map<string, ScopeMapEntry[]>
-  exitHandler?: Handler
-  openerNodeId: number
+interface WalkState {
+  context: RuleContext
+  violations: Violation[]
+  perRule: Map<string, number>
 }
 
 export interface Violation {
@@ -33,128 +28,95 @@ export interface WalkResult {
   perRule: Map<string, number>
 }
 
-interface WalkContext {
-  context: RuleContext
-  violations: Violation[]
-  perRule: Map<string, number>
-}
-
 export class RuleDispatcher {
-  private readonly rules: Rule[]
-  private readonly language: LanguageDefinition
-  private readonly _handledRules = new Set<string>()
-
-  constructor(rules: Rule[], language: LanguageDefinition) {
-    this.rules = rules
-    this.language = language
-  }
+  constructor(
+    private readonly rules: Rule[],
+    private readonly language: LanguageDefinition
+  ) {}
 
   walk(tree: TreeSitter.Tree, context: RuleContext): WalkResult {
-    const violations: Violation[] = []
-    const perRule = new Map<string, number>()
-    let nodesVisited = 0
-    const scopeStack: ScopeFrame[] = []
-
-    const rootScopeFrames = this.buildRootScopes(tree.rootNode.id)
-    scopeStack.push(...rootScopeFrames)
-
-    const stack: Array<[TreeSitter.Node, boolean]> = [[tree.rootNode, false]]
-
-    while (stack.length > 0) {
-      const [rawNode, isExit] = stack.pop()!
-      nodesVisited++
-      if (isExit) {
-        this.exitNode(rawNode, scopeStack, { context, violations, perRule })
-      } else {
-        this.enterNode(rawNode, scopeStack, stack, { context, violations, perRule })
-      }
+    const state: WalkState = {
+      context,
+      violations: [],
+      perRule: new Map(),
     }
 
-    return { violations, nodesVisited, perRule }
-  }
-
-  private lazyNode(rawNode: TreeSitter.Node, lang: LanguageDefinition): () => Node {
-    let node: Node | undefined
-    return () => {
-      if (!node) node = new Node(rawNode, lang)
-      return node
-    }
-  }
-
-  private buildRootScopes(rootNodeId: number): ScopeFrame[] {
-    const frames: ScopeFrame[] = []
+    const scopes = new ScopeChain()
     for (const rule of this.rules) {
-      const frame = this.buildScopeFrame(rule, rule.visitors, rootNodeId)
-      frames.push(frame)
+      scopes.enter(this.buildScopeFrame(rule, rule.visitors, tree.rootNode.id))
     }
-    return frames
+
+    let nodesVisited = 0
+    const traversal: TraversalStep[] = [[tree.rootNode, false]]
+
+    while (traversal.length > 0) {
+      const [rawNode, isExit] = traversal.pop()!
+      nodesVisited++
+      if (!scopes.tracks(rawNode.type)) {
+        pushChildren(rawNode, traversal)
+        continue
+      }
+      if (isExit) this.handleExit(rawNode, scopes, state)
+      else this.handleEnter(rawNode, scopes, traversal, state)
+    }
+
+    return { violations: state.violations, nodesVisited, perRule: state.perRule }
   }
 
-  private enterNode(
+  private handleEnter(
     rawNode: TreeSitter.Node,
-    scopeStack: ScopeFrame[],
-    stack: Array<[TreeSitter.Node, boolean]>,
-    ctx: WalkContext
+    scopes: ScopeChain,
+    traversal: TraversalStep[],
+    state: WalkState
   ): void {
-    const returnedMaps: Array<{ rule: Rule; map: VisitorMap }> = []
-    const handledRules = this._handledRules
-    handledRules.clear()
+    const newFrames = this.dispatch(rawNode, scopes, 'entry', state)
+    for (const frame of newFrames) scopes.enter(frame)
+    traversal.push([rawNode, true])
+    pushChildren(rawNode, traversal)
+  }
 
-    const getNode = this.lazyNode(rawNode, ctx.context.language)
+  private handleExit(rawNode: TreeSitter.Node, scopes: ScopeChain, state: WalkState): void {
+    this.dispatch(rawNode, scopes, 'exit', state)
+    let node: Node | undefined
+    for (const frame of scopes.closeAt(rawNode.id)) {
+      if (!frame.exitHandler) continue
+      node ??= new Node(rawNode, state.context.language)
+      this.invokeHandler(frame.exitHandler, node, frame.rule, state)
+    }
+  }
 
-    for (let i = scopeStack.length - 1; i >= 0; i--) {
-      const frame = scopeStack[i]
-      if (handledRules.has(frame.rule.id)) continue
-      const entries = frame.entryMap.get(rawNode.type)
+  /**
+   * Fire handlers for `mode` on all scope frames, closest-defined-scope-wins.
+   * Returns any new scope frames produced by entry handlers that returned a nested VisitorMap.
+   */
+  private dispatch(
+    rawNode: TreeSitter.Node,
+    scopes: ScopeChain,
+    mode: 'entry' | 'exit',
+    state: WalkState
+  ): ScopeFrame[] {
+    const handled = new Set<string>()
+    const newFrames: ScopeFrame[] = []
+    let node: Node | undefined
+
+    for (let i = scopes.size - 1; i >= 0; i--) {
+      const frame = scopes.at(i)
+      if (handled.has(frame.rule.id)) continue
+      const entries = (mode === 'entry' ? frame.entryMap : frame.exitMap).get(rawNode.type)
       if (!entries) continue
-      const n = getNode()
+      node ??= new Node(rawNode, state.context.language)
       for (const entry of entries) {
-        if (entry.pattern && !n.matchesPattern(entry.pattern)) continue
-        handledRules.add(frame.rule.id)
-        const result = this.dispatchHandler(entry.handler, n, frame.rule, ctx)
-        if (result && typeof result === 'object') {
-          returnedMaps.push({ rule: frame.rule, map: result })
+        if (entry.pattern && !node.matchesPattern(entry.pattern)) continue
+        handled.add(frame.rule.id)
+        const result = this.invokeHandler(entry.handler, node, frame.rule, state)
+        if (mode === 'entry' && result && typeof result === 'object') {
+          newFrames.push(this.buildScopeFrame(frame.rule, result, rawNode.id))
         }
         break
       }
     }
 
-    for (const { rule, map } of returnedMaps) {
-      scopeStack.push(this.buildScopeFrame(rule, map, rawNode.id))
-    }
-
-    stack.push([rawNode, true])
-    for (let i = rawNode.childCount - 1; i >= 0; i--) {
-      const child = rawNode.child(i)
-      if (child) stack.push([child, false])
-    }
-  }
-
-  private exitNode(rawNode: TreeSitter.Node, scopeStack: ScopeFrame[], ctx: WalkContext): void {
-    const getNode = this.lazyNode(rawNode, ctx.context.language)
-
-    const handledRules = this._handledRules
-    handledRules.clear()
-    for (let i = scopeStack.length - 1; i >= 0; i--) {
-      const frame = scopeStack[i]
-      if (handledRules.has(frame.rule.id)) continue
-      const entries = frame.exitMap.get(rawNode.type)
-      if (!entries) continue
-      const n = getNode()
-      for (const entry of entries) {
-        if (entry.pattern && !n.matchesPattern(entry.pattern)) continue
-        handledRules.add(frame.rule.id)
-        this.dispatchHandler(entry.handler, n, frame.rule, ctx)
-        break
-      }
-    }
-
-    while (scopeStack.length > 0 && scopeStack[scopeStack.length - 1].openerNodeId === rawNode.id) {
-      const frame = scopeStack.pop()!
-      if (frame.exitHandler) {
-        this.dispatchHandler(frame.exitHandler, getNode(), frame.rule, ctx)
-      }
-    }
+    return newFrames
   }
 
   private buildScopeFrame(rule: Rule, map: VisitorMap, openerNodeId: number): ScopeFrame {
@@ -162,36 +124,23 @@ export class RuleDispatcher {
     const exitMap = new Map<string, ScopeMapEntry[]>()
 
     for (const [selector, handler] of Object.entries(map)) {
-      if (handler == null) continue
-      if (selector === 'exit') continue
-      const resolved = resolveSelector(selector, this.language)
-      for (const res of resolved) {
+      if (handler == null || selector === 'exit') continue
+      for (const res of resolveSelector(selector, this.language)) {
         const target = res.isExit ? exitMap : entryMap
-        const key = res.nodeType
-        const existing = target.get(key)
         const entry: ScopeMapEntry = { handler: handler as Handler, pattern: res.pattern }
-        if (existing) {
-          existing.push(entry)
-        } else {
-          target.set(key, [entry])
-        }
+        const existing = target.get(res.nodeType)
+        if (existing) existing.push(entry)
+        else target.set(res.nodeType, [entry])
       }
     }
 
-    return {
-      rule,
-      entryMap,
-      exitMap,
-      exitHandler: map.exit,
-      openerNodeId,
-    }
+    return { rule, entryMap, exitMap, exitHandler: map.exit, openerNodeId }
   }
 
-  private dispatchHandler(fn: Handler, node: Node, rule: Rule, ctx: WalkContext): void | VisitorMap {
-    const { context, violations, perRule } = ctx
+  private invokeHandler(fn: Handler, node: Node, rule: Rule, state: WalkState): void | VisitorMap {
     const report: ReportFn = ({ message, suggestion, node: reportNode }) => {
-      const target = reportNode ? reportNode.unwrap() : node.unwrap()
-      violations.push({
+      const target = (reportNode ?? node).unwrap()
+      state.violations.push({
         ruleId: rule.id,
         message,
         suggestion,
@@ -204,8 +153,15 @@ export class RuleDispatcher {
       })
     }
     const start = performance.now()
-    const result = fn(node, context, report)
-    perRule.set(rule.id, (perRule.get(rule.id) ?? 0) + (performance.now() - start))
+    const result = fn(node, state.context, report)
+    state.perRule.set(rule.id, (state.perRule.get(rule.id) ?? 0) + (performance.now() - start))
     return result
+  }
+}
+
+function pushChildren(node: TreeSitter.Node, stack: TraversalStep[]): void {
+  for (let i = node.childCount - 1; i >= 0; i--) {
+    const child = node.child(i)
+    if (child) stack.push([child, false])
   }
 }
