@@ -2,6 +2,7 @@ export interface NodePattern {
   type: string
   hasChild?: string | string[]
   lacksChild?: string | string[]
+  notText?: string
 }
 
 export type SemanticKind =
@@ -35,3 +36,5 @@ export type SemanticKind =
   | 'return'
   /** Produces a value to the caller while the function remains active (suspended, not terminated). Control may return to the function later. */
   | 'yield'
+  /** A numeric literal (integer, float, hex, binary, etc.). */
+  | 'number'

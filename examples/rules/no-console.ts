@@ -1,7 +1,7 @@
 // Example custom rule: disallow console statements
 // Place in .guardrail/rules/no-console.ts  for a project-local rule
 // or ~/.guardrail/rules/no-console.ts for a global rule
-import type { RegisterFn, SyntaxNode } from '@alexcvzz/guardrail'
+import type { RegisterFn, Node } from '@alexcvzz/guardrail'
 
 export default function(register: RegisterFn) {
   register('no-console', {
@@ -9,7 +9,7 @@ export default function(register: RegisterFn) {
     defaultSeverity: 'warning',
     create() {
       return {
-        _identifier(node: SyntaxNode, ctx, report) {
+        _identifier(node: Node, ctx, report) {
           if (node.text !== 'console') return
           const parent = node.parent
           if (parent?.type !== 'member_expression') return

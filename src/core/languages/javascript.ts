@@ -36,5 +36,6 @@ export const JAVASCRIPT: LanguageDefinition = {
     parameters: [{ type: 'formal_parameters' }],
     return: [{ type: 'return_statement' }],
     yield: [{ type: 'yield_expression' }],
+    number: [{ type: 'number', notText: 'number' }],
   },
 }

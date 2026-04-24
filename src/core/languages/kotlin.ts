@@ -9,6 +9,7 @@ export const KOTLIN: LanguageDefinition = {
       { type: 'function_declaration' },
       { type: 'anonymous_function' },
       { type: 'lambda_expression' },
+      { type: 'lambda_literal' },
       { type: 'getter' },
       { type: 'setter' },
       { type: 'init_clause' },
@@ -36,5 +37,6 @@ export const KOTLIN: LanguageDefinition = {
     parameters: [{ type: 'function_value_parameters' }],
     return: [{ type: 'return_expression' }],
     yield: [],
+    number: [{ type: 'number_literal' }, { type: 'float_literal' }],
   },
 }

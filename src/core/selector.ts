@@ -24,7 +24,7 @@ export function resolveSelector(
     return patterns.map((p) => ({
       nodeType: p.type,
       isExit,
-      pattern: p.hasChild || p.lacksChild ? p : undefined,
+      pattern: p.hasChild || p.lacksChild || p.notText ? p : undefined,
     }))
   }
   return []

@@ -58,6 +58,9 @@ export class Node {
         if (this.hasChildType(childType)) return false
       }
     }
+    if (pattern.notText) {
+      if (this.text === pattern.notText) return false
+    }
     return true
   }
 

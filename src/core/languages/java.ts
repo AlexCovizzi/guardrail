@@ -9,6 +9,7 @@ export const JAVA: LanguageDefinition = {
       { type: 'method_declaration' },
       { type: 'constructor_declaration' },
       { type: 'compact_constructor_declaration' },
+      { type: 'lambda_expression' },
     ],
     class: [{ type: 'class_declaration' }, { type: 'record_declaration' }],
     import: [{ type: 'import_declaration' }],
@@ -17,8 +18,10 @@ export const JAVA: LanguageDefinition = {
     type: [],
     enum: [{ type: 'enum_declaration' }],
     namespace: [],
-    constant: [],
-    variable: [],
+    constant: [
+      { type: 'field_declaration', hasChild: 'modifiers' }, // static final, final, etc.
+    ],
+    variable: [{ type: 'field_declaration', lacksChild: 'modifiers' }, { type: 'local_variable_declaration' }],
     branch: [
       { type: 'if_statement' },
       { type: 'for_statement' },
@@ -32,5 +35,13 @@ export const JAVA: LanguageDefinition = {
     parameters: [{ type: 'formal_parameters' }],
     return: [{ type: 'return_statement' }],
     yield: [],
+    number: [
+      { type: 'decimal_integer_literal' },
+      { type: 'decimal_floating_point_literal' },
+      { type: 'hex_integer_literal' },
+      { type: 'hex_floating_point_literal' },
+      { type: 'octal_integer_literal' },
+      { type: 'binary_integer_literal' },
+    ],
   },
 }
