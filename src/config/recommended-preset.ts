@@ -13,13 +13,9 @@ export default {
     'class-max-fields': { max: 20 },
     'max-file-lines': { max: 300 },
     'max-import-lines': { max: 20 },
-    // TODO: Fix destructured variables/constants
-    'naming-convention': { enabled: false },
     'no-duplicate-imports': {},
     'no-magic-numbers': { ignore: '0,1,-1' },
-    'no-short-names': { minLength: 2 },
-    // TODO: Fix how comments are considered in this rule, also need to make the message more clear
-    'declaration-order': { enabled: false },
+    'no-short-names': { minLength: 2 }
   },
   ignore: [
     '.git',

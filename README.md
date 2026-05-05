@@ -116,11 +116,9 @@ The `overrides` key accepts a language name and a `rules` block that is merged o
 | `class-max-fields` | Class field/property count must not exceed N | 20 |
 | `max-file-lines` | File line count must not exceed N (warning) | 300 |
 | `max-import-lines` | Import section must not exceed N lines (warning) | 20 |
-| `naming-convention` | Enforce consistent naming conventions (warning) | camelCase |
 | `no-duplicate-imports` | Disallow multiple imports from the same source | — |
 | `no-magic-numbers` | Disallow unnamed numeric literals (warning) | — |
 | `no-short-names` | Disallow overly short names; common single-letter names allowed (warning) | minLength: 2 |
-| `declaration-order` | Enforce top-level declaration order | — |
 | `class-member-ordering` | Enforce class member ordering | — |
 
 Cyclomatic complexity starts at 1 and increments for each branch point: `if`, `else if`, loops, `switch` cases, `catch` blocks, ternary expressions.
